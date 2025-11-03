@@ -80,21 +80,20 @@ with st.sidebar:
 def infer_features_from_model(m):
     """
     Devuelve: (num_cols, cat_cols, airlines)
-    Busca el ColumnTransformer 'preprocess', localiza los transformadores 'num' y 'cat',
-    y extrae categorías del OneHotEncoder para la columna 'main_airline'.
-    Es robusto a que los nombres cambien (busca por nombre y por tipo).
+    - Tolera que 'cat' sea un OneHotEncoder directo o dentro de un Pipeline.
+    - Resuelve cat_cols a nombres, aunque vengan como índices/slices/máscara.
     """
-    from sklearn.preprocessing import OneHotEncoder
     from sklearn.compose import ColumnTransformer
+    from sklearn.preprocessing import OneHotEncoder
     from sklearn.pipeline import Pipeline
+    import numpy as np
 
-    # 1) Encontrar el ColumnTransformer
-    if "preprocess" in getattr(m, "named_steps", {}):
+    # 1) Ubicar el ColumnTransformer 'preprocess' (o el primero que aparezca)
+    ct = None
+    if hasattr(m, "named_steps") and "preprocess" in m.named_steps:
         ct = m.named_steps["preprocess"]
     else:
-        # fallback: buscar el primer ColumnTransformer en el pipeline
-        ct = None
-        for step_name, step in getattr(m, "named_steps", {}).items():
+        for _, step in getattr(m, "named_steps", {}).items():
             if isinstance(step, ColumnTransformer):
                 ct = step
                 break
@@ -102,62 +101,92 @@ def infer_features_from_model(m):
         st.error("No se encontró un ColumnTransformer 'preprocess' ya entrenado dentro del modelo.")
         st.stop()
 
-    # 2) Localizar transformadores 'num' y 'cat' (por nombre o por estructura)
+    # 2) Encontrar transformadores numérico y categórico (por nombre o por estructura)
     num_t = None
     cat_t = None
     for name, trans, cols in ct.transformers_:
-        if name.lower().startswith("num"):
+        lname = str(name).lower()
+        if num_t is None and lname.startswith("num"):
             num_t = (name, trans, cols)
-        elif name.lower().startswith("cat"):
+        if cat_t is None and lname.startswith("cat"):
             cat_t = (name, trans, cols)
 
-    if cat_t is None or num_t is None:
-        # fallback: si no se llaman 'num'/'cat', tomá por tipo de columnas
+    # Fallback si no se llaman 'num'/'cat'
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+    if num_t is None or cat_t is None:
         for name, trans, cols in ct.transformers_:
-            if cat_t is None and isinstance(trans, (Pipeline,)):
-                # si dentro hay un OneHotEncoder, asumimos categóricas
-                if any(isinstance(s, OneHotEncoder) for _, s in trans.steps):
+            if cat_t is None:
+                if isinstance(trans, OneHotEncoder):
                     cat_t = (name, trans, cols)
-            if num_t is None and isinstance(trans, (Pipeline,)):
-                # heurística: si hay StandardScaler u otro scaler, asumimos numéricas
-                if any(s.__class__.__name__.lower().endswith("scaler") for _, s in trans.steps):
+                elif isinstance(trans, Pipeline) and any(isinstance(s, OneHotEncoder) for _, s in trans.steps):
+                    cat_t = (name, trans, cols)
+            if num_t is None:
+                if isinstance(trans, Pipeline) and any(isinstance(s, (StandardScaler, MinMaxScaler, RobustScaler)) for _, s in trans.steps):
                     num_t = (name, trans, cols)
 
     if cat_t is None:
-        st.error("No pude identificar el transformador categórico dentro del ColumnTransformer.")
+        st.error("No pude identificar el transformador categórico (OneHotEncoder) dentro del ColumnTransformer.")
         st.stop()
     if num_t is None:
         st.error("No pude identificar el transformador numérico dentro del ColumnTransformer.")
         st.stop()
 
-    _, cat_pipe, cat_cols = cat_t
-    _, _, num_cols = num_t
+    # 3) Extraer cat_cols y num_cols bruto (pueden ser nombres, índices, slices o máscaras)
+    _, cat_trans, cat_cols_raw = cat_t
+    _, _, num_cols_raw = num_t
 
-    # 3) Obtener el OneHotEncoder (por nombre 'onehot' o por tipo)
-    if isinstance(cat_pipe, Pipeline):
-        # por nombre 'onehot'
-        if "onehot" in cat_pipe.named_steps:
-            oh = cat_pipe.named_steps["onehot"]
+    # 4) Obtener el OneHotEncoder (sea directo o dentro de Pipeline)
+    if isinstance(cat_trans, OneHotEncoder):
+        oh = cat_trans
+    elif isinstance(cat_trans, Pipeline):
+        if "onehot" in cat_trans.named_steps:
+            oh = cat_trans.named_steps["onehot"]
         else:
-            # por tipo
-            found = [s for _, s in cat_pipe.named_steps.items() if isinstance(s, OneHotEncoder)]
-            if not found:
-                st.error("No encontré un OneHotEncoder dentro del pipeline de categóricas.")
+            # buscar por tipo
+            cands = [s for _, s in cat_trans.named_steps.items() if isinstance(s, OneHotEncoder)]
+            if not cands:
+                st.error("No encontré un OneHotEncoder dentro del transformador categórico.")
                 st.stop()
-            oh = found[0]
+            oh = cands[0]
     else:
-        st.error("El transformador categórico no parece ser un Pipeline con OneHotEncoder.")
+        st.error("El transformador categórico no es OneHotEncoder ni un Pipeline con OneHotEncoder.")
         st.stop()
 
-    # 4) Posición de 'main_airline' en las categóricas
+    # 5) Resolver nombres de columnas a partir de feature_names_in_
+    #    Soporta lista de nombres, índices, slice, máscara booleana, numpy array, etc.
+    names_all = list(getattr(ct, "feature_names_in_", []))  # ['days_to_departure', 'totalTravelDistance', ...]
+    def resolve_cols(cols):
+        if isinstance(cols, slice):
+            return names_all[cols]
+        if isinstance(cols, (list, tuple, np.ndarray)):
+            if len(cols) > 0 and isinstance(cols[0], (int, np.integer)):
+                return [names_all[i] for i in cols]
+            if len(cols) > 0 and isinstance(cols[0], (bool, np.bool_)):
+                idxs = [i for i, b in enumerate(cols) if b]
+                return [names_all[i] for i in idxs]
+            # asumimos lista de nombres
+            return list(cols)
+        # Caso extraño: un único índice o nombre
+        if isinstance(cols, (int, np.integer)):
+            return [names_all[int(cols)]]
+        if isinstance(cols, str):
+            return [cols]
+        # último recurso
+        return list(cols)
+
+    cat_cols = resolve_cols(cat_cols_raw)
+    num_cols = resolve_cols(num_cols_raw)
+
+    # 6) Ubicar la posición de 'main_airline' dentro de las categóricas
     try:
         idx_airline = list(cat_cols).index("main_airline")
     except ValueError:
-        st.error("La columna 'main_airline' no figura entre las categóricas del modelo.")
+        # Si cat_cols vinieran como índices y names_all no existe (raro), mostramos ayuda
+        st.error(f"No encontré 'main_airline' entre las columnas categóricas resueltas: {cat_cols}")
         st.stop()
 
-    # 5) Categorías aprendidas para 'main_airline'
-    # oh.categories_ es una lista alineada con cat_cols (post fit)
+    # 7) Extraer categorías aprendidas por el OHE para esa columna
+    #    oh.categories_ es una lista alineada con el orden de cat_cols (post-fit)
     airlines = list(oh.categories_[idx_airline])
     return list(num_cols), list(cat_cols), airlines
     
