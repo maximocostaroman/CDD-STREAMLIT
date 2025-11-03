@@ -1,5 +1,6 @@
 import os
 import datetime as dt
+from pathlib import Path   # 👈 FALTA ESTO
 import numpy as np
 import pandas as pd
 import altair as alt
@@ -10,24 +11,37 @@ import streamlit as st
 st.set_page_config(page_title="Flight Price Explorer (JFK ⇄ MIA)", layout="wide")
 
 # Modelo: local o Google Drive (opcional)
-MODEL_PATH = "models/random_forest_flights_v2.pkl"
-DRIVE_ID = st.secrets.get("DRIVE_ID", None)  # opcional: define en .streamlit/secrets.toml
+BASE_DIR = Path(__file__).parent
+MODEL_PATH = BASE_DIR / "models" / "random_forest_flights_v2.pkl"
+MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)  # 👈 crea la carpeta 'models/' si no existe
+
+DRIVE_ID = st.secrets.get("DRIVE_ID")  # ya lo tenés en secrets
 DRIVE_URL = f"https://drive.google.com/uc?id={DRIVE_ID}" if DRIVE_ID else None
+
 
 @st.cache_resource
 def load_model():
-    # descarga pkl si no existe y hay DRIVE_ID
-    if not os.path.exists(MODEL_PATH):
-        if DRIVE_URL:
-            import gdown
-            with st.spinner("Descargando modelo desde Google Drive…"):
-                gdown.download(DRIVE_URL, MODEL_PATH, quiet=False)
-        else:
-            st.error("No se encontró el modelo y no hay DRIVE_ID en secrets.")
+    # Si no está el modelo local, lo bajo de Drive
+    if not MODEL_PATH.exists() or MODEL_PATH.stat().st_size == 0:
+        import gdown
+        drive_id = st.secrets.get("DRIVE_ID") or os.getenv("DRIVE_ID")
+        if not drive_id:
+            st.error("No se encontró DRIVE_ID en secrets ni en variables de entorno.")
             st.stop()
+
+        with st.spinner("Descargando modelo desde Google Drive…"):
+            # Podés usar id= directamente (más confiable que armar la URL)
+            gdown.download(id=drive_id, output=str(MODEL_PATH), quiet=False)
+
+        # Validación post-descarga
+        if not MODEL_PATH.exists() or MODEL_PATH.stat().st_size == 0:
+            st.error("La descarga del modelo falló o quedó vacía. Verificá permisos del archivo en Drive.")
+            st.stop()
+
+    # Carga del modelo
     with st.spinner("Cargando modelo…"):
-        model = joblib.load(MODEL_PATH)
-    return model
+        return joblib.load(str(MODEL_PATH))
+
 
 @st.cache_data
 def load_sample():
