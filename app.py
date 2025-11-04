@@ -1,3 +1,4 @@
+
 import os
 import math
 import datetime as dt
@@ -27,7 +28,6 @@ ORIGINS = ["JFK", "MIA"]
 DESTS = ["ATL","BOS","CLT","DEN","DFW","DTW","IAD","LAX","MIA","OAK","ORD","PHL","SFO","EWR","JFK","LGA"]
 
 # Minimal airline codes seen commonly in the US domestic market.
-# (If your model saw more, OneHotEncoder(handle_unknown="ignore") should handle it.)
 AIRLINES = {
     "AA - American": "AA",
     "DL - Delta": "DL",
@@ -48,7 +48,6 @@ CABINS = {
 }
 
 # Airport approximate coordinates (lat, lon) for distance calc (haversine)
-# Source: approximate public data; precision is not critical for demo distance features.
 AIRPORT_COORDS = {
     "ATL": (33.6407, -84.4277),
     "BOS": (42.3656, -71.0096),
@@ -69,6 +68,28 @@ AIRPORT_COORDS = {
 }
 
 # =======================
+# Fallback helpers for older Streamlit
+# =======================
+def segmented_or_radio(label, options, default):
+    if hasattr(st, "segmented_control"):
+        return st.segmented_control(label, options=options, default=default)
+    else:
+        idx = options.index(default) if default in options else 0
+        return st.radio(label, options, index=idx, horizontal=True)
+
+def toggle_or_checkbox(label, value=False):
+    if hasattr(st, "toggle"):
+        return st.toggle(label, value=value)
+    else:
+        return st.checkbox(label, value=value)
+
+def primary_button(label):
+    try:
+        return st.button(label, type="primary")
+    except TypeError:
+        return st.button(label)
+
+# =======================
 # Helpers
 # =======================
 @st.cache_resource
@@ -78,14 +99,15 @@ def load_model():
         if DRIVE_URL:
             try:
                 import gdown  # must be present in requirements.txt
-            except Exception as e:
+            except Exception:
                 st.error(
                     "No se encontró 'gdown'. Agregá 'gdown' a requirements.txt o "
                     "instalalo en el entorno para poder descargar el modelo desde Drive."
                 )
                 raise
             with st.spinner("Descargando modelo desde Google Drive..."):
-                gdown.download(DRIVE_URL, str(MODEL_PATH), quiet=False)
+                import gdown as _gdown
+                _gdown.download(DRIVE_URL, str(MODEL_PATH), quiet=False)
         else:
             st.warning("No hay modelo local y no se definió DRIVE_ID en secrets. "
                        "Cargá el pkl manualmente en /models o seteá DRIVE_ID.")
@@ -95,7 +117,6 @@ def load_model():
     except Exception as e:
         st.error(f"No se pudo cargar el modelo desde {MODEL_PATH}.\nDetalle: {e}")
         raise
-
 
 def haversine_distance_km(lat1, lon1, lat2, lon2):
     R = 6371.0
@@ -107,7 +128,6 @@ def haversine_distance_km(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     return R * c
 
-
 def route_distance_km(origin: str, dest: str) -> float:
     if origin not in AIRPORT_COORDS or dest not in AIRPORT_COORDS:
         return np.nan
@@ -115,20 +135,13 @@ def route_distance_km(origin: str, dest: str) -> float:
     (lat2, lon2) = AIRPORT_COORDS[dest]
     return haversine_distance_km(lat1, lon1, lat2, lon2)
 
-
 def estimate_duration_min(distance_km: float, nonstop: bool = True) -> int:
-    """
-    Very rough duration estimator:
-    cruise speed ~ 800 km/h + 40 min overhead (taxi/boarding).
-    If not nonstop, add 60 minutes penalty (layover).
-    """
     if np.isnan(distance_km):
         return 120
     hours = distance_km / 800.0
     base_min = hours * 60 + 40
     penalty = 0 if nonstop else 60
     return int(round(base_min + penalty))
-
 
 def build_features(
     origin: str,
@@ -155,15 +168,13 @@ def build_features(
         "main_airline": airline_code,
         "main_cabin": cabin_value,
         "flight_month": int(flight_date.month),
-        "flight_dayofweek": int(flight_date.weekday()),  # Monday=0
+        "flight_dayofweek": int(flight_date.weekday()),
     }
     return pd.DataFrame([row])
-
 
 def predict(model, X: pd.DataFrame) -> float:
     y = model.predict(X)
     return float(y[0])
-
 
 def format_currency(x: float) -> str:
     try:
@@ -171,14 +182,13 @@ def format_currency(x: float) -> str:
     except Exception:
         return str(x)
 
-
 # =======================
 # UI
 # =======================
 st.title("Vuelos")
 
-# Top controls (one-way / round-trip, pax is not used by model but UX only)
-trip_type = st.segmented_control(
+# Top controls
+trip_type = segmented_or_radio(
     "Tipo de viaje",
     options=["Ida y vuelta", "Solo ida"],
     default="Ida y vuelta",
@@ -190,9 +200,9 @@ with c1:
     origin = st.selectbox("Desde", ORIGINS, index=0)
 
 with c2:
-    # exclude origin from options for sanity (can be same in rare cases, but we avoid)
     dest_options = [d for d in DESTS if d != origin]
-    dest = st.selectbox("¿A dónde quieres ir?", dest_options, index=dest_options.index("MIA") if "MIA" in dest_options else 0)
+    default_dest_index = dest_options.index("MIA") if "MIA" in dest_options else 0
+    dest = st.selectbox("¿A dónde quieres ir?", dest_options, index=default_dest_index)
 
 with c3:
     dep_date = st.date_input("Salida", value=dt.date.today() + dt.timedelta(days=14), min_value=dt.date.today())
@@ -213,15 +223,15 @@ with c6:
     airline_label = st.selectbox("Aerolínea", list(AIRLINES.keys()), index=0)
     airline_code = AIRLINES[airline_label]
 with c7:
-    nonstop = st.toggle("Solo vuelos directos", value=True)
+    nonstop = toggle_or_checkbox("Solo vuelos directos", value=True)
 with c8:
-    is_refundable = st.toggle("Reembolsable", value=False)
+    is_refundable = toggle_or_checkbox("Reembolsable", value=False)
 
 # Load model (lazy)
 model = load_model()
 
 # ACTIONS
-cta = st.button("Explorar", type="primary")
+cta = primary_button("Explorar")
 
 if cta:
     try:
@@ -266,9 +276,7 @@ if cta:
 
         st.divider()
 
-        # ==============
         # Viz 1: Sensibilidad al anticipo (días)
-        # ==============
         st.markdown("#### Cómo cambia el precio según la anticipación")
         days_range = np.arange(1, 181)  # 1..180 días
         X_sens = pd.concat([
@@ -300,9 +308,7 @@ if cta:
 
         st.divider()
 
-        # ==============
         # Viz 2: Comparativa de cabinas para esta ruta y fecha
-        # ==============
         st.markdown("#### Comparar por cabina (misma ruta y fecha)")
         cabin_items = list(CABINS.items())
         X_cab = pd.concat([
