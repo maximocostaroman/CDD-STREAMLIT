@@ -131,28 +131,63 @@ def estimate_duration_min(distance_km: float, nonstop: bool = True) -> int:
 def infer_features_from_model(m):
     """
     Devuelve: (num_cols, cat_cols, airlines, dow_categories)
+    Lee el ColumnTransformer 'preprocess' y extrae:
+      - columnas numéricas y categóricas que espera el modelo
+      - categorías del OneHotEncoder para 'main_airline' y 'flight_dayofweek'
     """
     if "preprocess" not in m.named_steps:
         st.error("El modelo no tiene paso 'preprocess'.")
         st.stop()
 
     ct = m.named_steps["preprocess"]
-    transformers = dict(ct.transformers_)
-    cat_cols = transformers["cat"][2]
-    num_cols = transformers["num"][2]
 
-    cat_pipe = transformers["cat"][1]
-    oh = cat_pipe.named_steps["onehot"]
+    # ct.transformers_ es una lista de tuplas: (name, transformer, columns)
+    # armamos un mapping {name: (transformer, columns)}
+    try:
+        tmap = {name: (trans, cols) for name, trans, cols in ct.transformers_}
+    except Exception as e:
+        st.error(f"No pude leer transformers_ del ColumnTransformer: {e}")
+        st.stop()
 
-    # categorías de aerolíneas
-    idx_airline = cat_cols.index("main_airline")
+    if "cat" not in tmap or "num" not in tmap:
+        st.error(f"No encontré transformadores 'cat' y 'num' en preprocess. Están: {list(tmap.keys())}")
+        st.stop()
+
+    cat_trans, cat_cols = tmap["cat"]
+    num_trans, num_cols = tmap["num"]
+
+    # El transformador categórico puede ser un Pipeline o directamente un OneHotEncoder
+    if hasattr(cat_trans, "named_steps"):  # Pipeline
+        if "onehot" not in cat_trans.named_steps:
+            st.error("No encontré el paso 'onehot' dentro del pipeline categórico.")
+            st.stop()
+        oh = cat_trans.named_steps["onehot"]
+    else:
+        # No es pipeline; verificamos si es OneHotEncoder
+        oh = cat_trans
+
+    if not hasattr(oh, "categories_"):
+        st.error("El OneHotEncoder aún no está ajustado (no tiene 'categories_').")
+        st.stop()
+
+    # Índices dentro de las categóricas
+    try:
+        idx_airline = cat_cols.index("main_airline")
+    except ValueError:
+        st.error(f"'main_airline' no está en las columnas categóricas: {cat_cols}")
+        st.stop()
+
+    try:
+        idx_dow = cat_cols.index("flight_dayofweek")
+    except ValueError:
+        st.error(f"'flight_dayofweek' no está en las columnas categóricas: {cat_cols}")
+        st.stop()
+
     airlines = list(oh.categories_[idx_airline])
-
-    # categorías de flight_dayofweek (¿'Mon'..'Sun' o 0..6?)
-    idx_dow = cat_cols.index("flight_dayofweek")
     dow_categories = list(oh.categories_[idx_dow])
 
-    return num_cols, cat_cols, airlines, dow_categories
+    return list(num_cols), list(cat_cols), airlines, dow_categories
+
 
 def normalize_dow_value(date: dt.date, dow_categories):
     """
