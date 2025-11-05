@@ -192,24 +192,103 @@ model = load_model()
 num_cols, cat_cols, airlines_from_model, dow_categories = infer_features_from_model(model)
 
 # =======================
-# INTERFAZ
+# INTERFAZ VISUAL
 # =======================
-st.title("Vuelos")
+# --- Estilos CSS personalizados ---
+st.markdown(
+    """
+    <style>
+    /* ======= HEADER BANDERA ======= */
+    .header-container {
+        background: linear-gradient(180deg, #0A3161 70%, #B31942 70%);
+        color: white;
+        text-align: center;
+        padding: 25px 10px 35px 10px;
+        border-radius: 10px;
+        position: relative;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    }
+    .header-title {
+        font-size: 2.2em;
+        font-weight: 700;
+        letter-spacing: 1px;
+        color: white;
+    }
+    .header-stars {
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 18px;
+        letter-spacing: 6px;
+    }
+    .subheader {
+        font-size: 1em;
+        color: #f1f1f1;
+        font-style: italic;
+    }
 
-trip_type = st.radio("Tipo de viaje", ["Ida y vuelta", "Solo ida"], horizontal=True)
-c1, c2, c3, c4 = st.columns([1.2, 2, 1.3, 1.3])
+    /* ======= INPUTS Y BOTONES ======= */
+    div[data-baseweb="select"] {
+        border-radius: 6px;
+    }
+    div.stDateInput > div > input {
+        border-radius: 6px !important;
+        padding: 5px 10px !important;
+    }
+    div.stButton > button {
+        background-color: #B31942 !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        font-size: 1.1em !important;
+        padding: 10px 0 !important;
+    }
+    div.stButton > button:hover {
+        background-color: #861B2D !important;
+        color: #fff !important;
+        transform: scale(1.02);
+    }
+
+    /* ======= SEPARADORES ======= */
+    hr {
+        border: 1px solid #B31942;
+        margin: 25px 0;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# --- Encabezado principal ---
+st.markdown(
+    """
+    <div class="header-container">
+        <div class="header-stars">★ ★ ★ ★ ★ ★</div>
+        <div class="header-title">🇺🇸 Vuelos de Cabotaje EE. UU.</div>
+        <div class="subheader">Explorá precios, aerolíneas y tendencias de vuelos domésticos</div>
+    </div>
+    <br>
+    """,
+    unsafe_allow_html=True,
+)
+
+# --- Panel de búsqueda ---
+trip_type = st.radio("✈️ Tipo de viaje", ["Ida y vuelta", "Solo ida"], horizontal=True)
+c1, c2, c3, c4 = st.columns([1.3, 2, 1.3, 1.3])
 
 with c1:
-    origin_label = st.selectbox("¿Desde dónde?", [AIRPORT_NAMES[o] for o in ORIGINS])
+    origin_label = st.selectbox("🛫 Origen", [AIRPORT_NAMES[o] for o in ORIGINS])
     origin = [k for k, v in AIRPORT_NAMES.items() if v == origin_label][0]
 
 with c2:
-    dest_label = st.selectbox("¿A dónde quieres ir?", [AIRPORT_NAMES[d] for d in DESTS if d != origin])
+    dest_label = st.selectbox("🛬 Destino", [AIRPORT_NAMES[d] for d in DESTS if d != origin])
     dest = [k for k, v in AIRPORT_NAMES.items() if v == dest_label][0]
 
 with c3:
     dep_date = st.date_input(
-        "Fecha de salida",
+        "📅 Fecha de salida",
         value=dt.date.today() + dt.timedelta(days=14),
         min_value=dt.date.today(),
         format="DD/MM/YYYY"
@@ -218,19 +297,18 @@ with c3:
 with c4:
     if trip_type == "Ida y vuelta":
         ret_date = st.date_input(
-            "Fecha de vuelta",
+            "🔁 Fecha de vuelta",
             value=dt.date.today() + dt.timedelta(days=21),
-            min_value=dep_date,  # 🚫 no permite seleccionar fecha menor a la salida
+            min_value=dep_date,
             format="DD/MM/YYYY"
         )
     else:
         ret_date = None
-        st.write(" ")  # mantiene alineación visual
+        st.write("")
 
 st.markdown("<br>", unsafe_allow_html=True)
 cta = st.button("🔍 Buscar vuelos", type="primary", use_container_width=True)
-
-
+st.markdown("<hr>", unsafe_allow_html=True)
 
 # =======================
 # PREDICCIÓN
