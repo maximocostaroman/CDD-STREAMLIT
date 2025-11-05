@@ -275,7 +275,8 @@ if "df_air_out" in st.session_state:
 
     st.markdown("## ✈️ Resultados por aerolínea")
     # ==============================
-    # FILTRO DE AEROLÍNEAS
+    # ==============================
+    # FILTRO DE AEROLÍNEAS (reactivo sin delay)
     # ==============================
     todas = sorted(df_air_out["Aerolínea"].unique())
     
@@ -286,7 +287,7 @@ if "df_air_out" in st.session_state:
     def actualizar_aerolineas():
         """Actualiza la lista de aerolíneas seleccionadas y fuerza rerun."""
         st.session_state.aerolineas = st.session_state._seleccion_temp
-        st.experimental_rerun()  # 🚀 Fuerza actualización inmediata
+        st.rerun()  # 🚀 Nueva API (reemplaza a experimental_rerun)
     
     with st.expander("🎯 Filtrar por Aerolínea", expanded=False):
         st.session_state._seleccion_temp = st.multiselect(
@@ -299,6 +300,7 @@ if "df_air_out" in st.session_state:
     
     # Aplicar filtro directamente al DataFrame
     df_air_out_filtrado = df_air_out[df_air_out["Aerolínea"].isin(st.session_state.aerolineas)]
+
 
 
 
