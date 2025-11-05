@@ -275,34 +275,54 @@ if "df_air_out" in st.session_state:
 
     st.markdown("## ✈️ Resultados por aerolínea")
     # ==============================
+    # FILTRO DE AEROLÍNEAS (funcional y reactivo al primer clic)
     # ==============================
-    # FILTRO DE AEROLÍNEAS (reactivo sin delay)
-    # ==============================
-    todas = sorted(df_air_out["Aerolínea"].unique())
+    todas_aerolineas = sorted(df_air_out["Aerolínea"].unique())
     
-    # Inicializar variable de estado
-    if "aerolineas" not in st.session_state:
-        st.session_state.aerolineas = todas.copy()
-    
-    def actualizar_aerolineas():
-        """Actualiza la lista de aerolíneas seleccionadas y fuerza rerun."""
-        st.session_state.aerolineas = st.session_state._seleccion_temp
-        st.rerun()  # 🚀 Nueva API (reemplaza a experimental_rerun)
+    # Inicializar estado solo una vez
+    if "aerolineas_seleccionadas" not in st.session_state:
+        st.session_state.aerolineas_seleccionadas = todas_aerolineas.copy()
+    if "todas_seleccionadas" not in st.session_state:
+        st.session_state.todas_seleccionadas = True
     
     with st.expander("🎯 Filtrar por Aerolínea", expanded=False):
-        st.session_state._seleccion_temp = st.multiselect(
-            "Seleccioná aerolíneas:",
-            todas,
-            default=st.session_state.aerolineas,
-            key="multiselect_aero",
-            on_change=actualizar_aerolineas
+        toggle_todas = st.checkbox(
+            "Seleccionar todas las aerolíneas",
+            value=st.session_state.todas_seleccionadas,
+            help="Marcá o desmarcá para seleccionar o quitar todas las aerolíneas."
+        )
+    
+        # --- Si cambia el toggle, actualiza y recarga ---
+        if toggle_todas != st.session_state.todas_seleccionadas:
+            st.session_state.todas_seleccionadas = toggle_todas
+            st.session_state.aerolineas_seleccionadas = (
+                todas_aerolineas.copy() if toggle_todas else []
+            )
+            st.rerun()
+    
+        # --- Multiselect para selección individual ---
+        seleccion = st.multiselect(
+            "Seleccioná las aerolíneas que quieras ver:",
+            options=todas_aerolineas,
+            default=st.session_state.aerolineas_seleccionadas,
+            label_visibility="collapsed"
+        )
+    
+        # --- Si cambia la selección manual, actualizar y recargar ---
+        if set(seleccion) != set(st.session_state.aerolineas_seleccionadas):
+            st.session_state.aerolineas_seleccionadas = seleccion
+            st.session_state.todas_seleccionadas = len(seleccion) == len(todas_aerolineas)
+            st.rerun()
+    
+        st.caption(
+            f"🟩 Mostrando {len(st.session_state.aerolineas_seleccionadas)} "
+            f"de {len(todas_aerolineas)} aerolíneas disponibles."
         )
     
     # Aplicar filtro directamente al DataFrame
-    df_air_out_filtrado = df_air_out[df_air_out["Aerolínea"].isin(st.session_state.aerolineas)]
-
-
-
+    df_air_out_filtrado = df_air_out[
+        df_air_out["Aerolínea"].isin(st.session_state.aerolineas_seleccionadas)
+    ]
 
     # Análisis de precios
     st.markdown("### 📊 Análisis de precios")
