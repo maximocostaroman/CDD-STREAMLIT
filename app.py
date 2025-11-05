@@ -13,13 +13,19 @@ import joblib
 import streamlit as st
 import base64
 
-# =======================
-# CONFIGURACIÓN GENERAL
-# =======================
 st.set_page_config(page_title="Flight Price Explorer (JFK ⇄ MIA)", layout="wide")
 
 BASE_DIR = Path(__file__).parent if "__file__" in globals() else Path(".")
 MODEL_PATH = BASE_DIR / "models" / "random_forest_flights_v2.pkl"
+MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+# Prioridad: secrets → variable de entorno
+DRIVE_ID = st.secrets.get("DRIVE_ID") or os.getenv("DRIVE_ID")
+if not DRIVE_ID:
+    st.error("❌ Falta configurar DRIVE_ID en st.secrets o variables de entorno.")
+    st.stop()
+
+DRIVE_URL = f"https://drive.google.com/uc?id={DRIVE_ID}"
 
 # =======================
 # DATOS DE AEROPUERTOS
@@ -53,15 +59,37 @@ AIRPORT_COORDS = {
 # =======================
 @st.cache_resource
 def load_model():
+    # Descarga siempre (por si actualizaste el modelo en Drive)
     try:
-        if not MODEL_PATH.exists():
-            st.error("⚠️ No se encontró el modelo en 'models/random_forest_flights_v2.pkl'.")
-            return None
-        with st.spinner("Cargando modelo..."):
-            return joblib.load(MODEL_PATH)
+        with st.spinner("📥 Descargando modelo desde Google Drive..."):
+            try:
+                import gdown
+            except ImportError:
+                import subprocess, sys
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown", "-q"])
+                import gdown
+
+            # Descarga a archivo temporal y luego mueve (para evitar .pkl corrupto si la descarga se corta)
+            tmp_path = MODEL_PATH.with_suffix(".tmp.pkl")
+            if tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
+
+            gdown.download(DRIVE_URL, str(tmp_path), quiet=True)
+
+            if not tmp_path.exists() or tmp_path.stat().st_size == 0:
+                st.error("❌ La descarga del modelo falló o vino vacía. Verificá el DRIVE_ID/permiso de enlace.")
+                st.stop()
+
+            tmp_path.replace(MODEL_PATH)
+
+        with st.spinner("🧠 Cargando modelo..."):
+            model = joblib.load(MODEL_PATH)
+
+        return model
+
     except Exception as e:
-        st.error(f"❌ Error al cargar modelo: {e}")
-        return None
+        st.error(f"❌ Error al descargar/cargar el modelo: {e}")
+        st.stop()
 
 
 def haversine_distance_km(lat1, lon1, lat2, lon2):
