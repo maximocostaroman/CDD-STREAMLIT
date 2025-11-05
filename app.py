@@ -323,8 +323,12 @@ if "df_air_out" in st.session_state:
                     y="Precio estimado (USD):Q", tooltip=["Días antes del vuelo", "Precio estimado (USD)"]) \
             .properties(width=900, height=450)
         st.altair_chart(chart, use_container_width=True)
-        if st.button("❌ Cerrar gráfico", key="close_tend", use_container_width=True):
-            st.session_state.mostrar_tend = False
+        st.button(
+            "❌ Cerrar gráfico",
+            key="close_temp",
+            use_container_width=True,
+            on_click=lambda: st.session_state.update({"mostrar_temp": False})
+        )
 
     def mostrar_grafico_aerolineas():
         st.markdown("## 💵 Comparación de precios por aerolínea")
@@ -337,8 +341,12 @@ if "df_air_out" in st.session_state:
                     tooltip=["Aerolínea", "Precio redondeado"]) \
             .properties(width=900, height=450)
         st.altair_chart(chart, use_container_width=True)
-        if st.button("❌ Cerrar gráfico", key="close_aero", use_container_width=True):
-            st.session_state.mostrar_aero = False
+        st.button(
+            "❌ Cerrar gráfico",
+            key="close_temp",
+            use_container_width=True,
+            on_click=lambda: st.session_state.update({"mostrar_temp": False})
+        )
 
     def mostrar_grafico_estacionalidad():
         st.markdown("## 📅 Evolución del precio promedio por mes")
@@ -391,10 +399,13 @@ if "df_air_out" in st.session_state:
         st.altair_chart(chart, use_container_width=True)
     
         # --- Botón de cierre
-        if st.button("❌ Cerrar gráfico", key="close_temp", use_container_width=True):
-            st.session_state.mostrar_temp = False
+        st.button(
+            "❌ Cerrar gráfico",
+            key="close_temp",
+            use_container_width=True,
+            on_click=lambda: st.session_state.update({"mostrar_temp": False})
+        )
     
-
     if st.session_state.mostrar_tend:
         mostrar_grafico_tendencia()
     if st.session_state.mostrar_aero:
