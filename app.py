@@ -1,426 +1,339 @@
-# app.py
+# ===============================================
+# APP: Flight Price Explorer (JFK ⇄ MIA)
+# ===============================================
 import os
 import math
 import datetime as dt
 from pathlib import Path
- 
+
 import numpy as np
 import pandas as pd
 import altair as alt
 import joblib
 import streamlit as st
+import base64
 
 # =======================
-# CONFIG
+# CONFIGURACIÓN GENERAL
 # =======================
 st.set_page_config(page_title="Flight Price Explorer (JFK ⇄ MIA)", layout="wide")
 
 BASE_DIR = Path(__file__).parent if "__file__" in globals() else Path(".")
 MODEL_PATH = BASE_DIR / "models" / "random_forest_flights_v2.pkl"
-MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-DRIVE_ID = st.secrets.get("DRIVE_ID", None)  # definido en .streamlit/secrets.toml
-DRIVE_URL = f"https://drive.google.com/uc?id={DRIVE_ID}" if DRIVE_ID else None
-
-# Orígenes permitidos en la UI (en tu caso trabajás con JFK/MIA)
+# =======================
+# DATOS DE AEROPUERTOS
+# =======================
 ORIGINS = ["JFK", "MIA"]
+DESTS = [
+    "ATL", "BOS", "CLT", "DEN", "DFW", "DTW", "IAD", "LAX", "MIA",
+    "OAK", "ORD", "PHL", "SFO", "EWR", "JFK", "LGA"
+]
 
-# Destinos permitidos (incluye MIA/JFK para ida y vuelta)
-DESTS = ["ATL","BOS","CLT","DEN","DFW","DTW","IAD","LAX","MIA","OAK","ORD","PHL","SFO","EWR","JFK","LGA"]
-
-# Etiquetas de cabina para la UI (tu modelo v2 se entrenó sólo con coach; no afecta la predicción)
-CABINS = {
-    "Turista (Economy)": "coach",
-    "Premium Economy": "premium coach",
-    "Business": "business",
-    "First": "first",
+AIRPORT_NAMES = {
+    "ATL": "ATL (Atlanta, Georgia)", "BOS": "BOS (Boston, Massachusetts)", "CLT": "CLT (Charlotte, North Carolina)",
+    "DEN": "DEN (Denver, Colorado)", "DFW": "DFW (Dallas/Fort Worth, Texas)", "DTW": "DTW (Detroit, Michigan)",
+    "IAD": "IAD (Washington D.C.)", "LAX": "LAX (Los Ángeles, California)", "MIA": "MIA (Miami, Florida)",
+    "OAK": "OAK (Oakland, California)", "ORD": "ORD (Chicago, Illinois)", "PHL": "PHL (Filadelfia, Pennsylvania)",
+    "SFO": "SFO (San Francisco, California)", "EWR": "EWR (Newark, New Jersey)", "JFK": "JFK (Nueva York, NY)",
+    "LGA": "LGA (Nueva York, NY)"
 }
 
-# Coordenadas aproximadas (lat, lon) para cálculo de distancia (haversine)
 AIRPORT_COORDS = {
-    "ATL": (33.6407, -84.4277),
-    "BOS": (42.3656, -71.0096),
-    "CLT": (35.2140, -80.9431),
-    "DEN": (39.8561, -104.6737),
-    "DFW": (32.8998, -97.0403),
-    "DTW": (42.2124, -83.3534),
-    "IAD": (38.9531, -77.4565),
-    "LAX": (33.9416, -118.4085),
-    "MIA": (25.7959, -80.2871),
-    "OAK": (37.7126, -122.2197),
-    "ORD": (41.9742, -87.9073),
-    "PHL": (39.8744, -75.2424),
-    "SFO": (37.6213, -122.3790),
-    "EWR": (40.6895, -74.1745),
-    "JFK": (40.6413, -73.7781),
-    "LGA": (40.7769, -73.8740),
+    "ATL": (33.6407, -84.4277), "BOS": (42.3656, -71.0096), "CLT": (35.2140, -80.9431),
+    "DEN": (39.8561, -104.6737), "DFW": (32.8998, -97.0403), "DTW": (42.2124, -83.3534),
+    "IAD": (38.9531, -77.4565), "LAX": (33.9416, -118.4085), "MIA": (25.7959, -80.2871),
+    "OAK": (37.7126, -122.2197), "ORD": (41.9742, -87.9073), "PHL": (39.8744, -75.2424),
+    "SFO": (37.6213, -122.3790), "EWR": (40.6895, -74.1745), "JFK": (40.6413, -73.7781),
+    "LGA": (40.7769, -73.8740)
 }
 
 # =======================
-# Fallbacks para versiones de Streamlit
-# =======================
-def segmented_or_radio(label, options, default):
-    if hasattr(st, "segmented_control"):
-        return st.segmented_control(label, options=options, default=default)
-    idx = options.index(default) if default in options else 0
-    return st.radio(label, options, index=idx, horizontal=True)
-
-def toggle_or_checkbox(label, value=False):
-    if hasattr(st, "toggle"):
-        return st.toggle(label, value=value)
-    return st.checkbox(label, value=value)
-
-def primary_button(label):
-    try:
-        return st.button(label, type="primary")
-    except TypeError:
-        return st.button(label)
-
-# =======================
-# Helpers
+# FUNCIONES AUXILIARES
 # =======================
 @st.cache_resource
 def load_model():
-    """Carga el modelo local; si no existe y hay DRIVE_ID, lo descarga de Google Drive."""
-    if (not MODEL_PATH.exists()) or MODEL_PATH.stat().st_size == 0:
-        if DRIVE_URL:
-            try:
-                import gdown
-            except Exception:
-                st.error(
-                    "No se encontró 'gdown'. Agregá 'gdown' a requirements.txt para descargar el modelo desde Drive."
-                )
-                raise
-            with st.spinner("Descargando modelo desde Google Drive..."):
-                gdown.download(DRIVE_URL, str(MODEL_PATH), quiet=False)
-        else:
-            st.warning("No hay modelo local y no se definió DRIVE_ID en secrets. "
-                       "Cargá el pkl en /models o seteá DRIVE_ID.")
     try:
-        return joblib.load(MODEL_PATH)
+        if not MODEL_PATH.exists():
+            st.error("⚠️ No se encontró el modelo en 'models/random_forest_flights_v2.pkl'.")
+            return None
+        with st.spinner("Cargando modelo..."):
+            return joblib.load(MODEL_PATH)
     except Exception as e:
-        st.error(f"No se pudo cargar el modelo desde {MODEL_PATH}.\nDetalle: {e}")
-        raise
+        st.error(f"❌ Error al cargar modelo: {e}")
+        return None
+
 
 def haversine_distance_km(lat1, lon1, lat2, lon2):
     R = 6371.0
-    phi1 = math.radians(lat1)
-    phi2 = math.radians(lat2)
+    phi1, phi2 = map(math.radians, [lat1, lat2])
     dphi = math.radians(lat2 - lat1)
     dlambda = math.radians(lon2 - lon1)
-    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-    return R * c
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-def route_distance_km(origin: str, dest: str) -> float:
+
+def route_distance_km(origin, dest):
     if origin not in AIRPORT_COORDS or dest not in AIRPORT_COORDS:
         return np.nan
-    (lat1, lon1) = AIRPORT_COORDS[origin]
-    (lat2, lon2) = AIRPORT_COORDS[dest]
+    lat1, lon1 = AIRPORT_COORDS[origin]
+    lat2, lon2 = AIRPORT_COORDS[dest]
     return haversine_distance_km(lat1, lon1, lat2, lon2)
 
-def estimate_duration_min(distance_km: float, nonstop: bool = True) -> int:
+
+def estimate_duration_min(distance_km, nonstop=True):
     if np.isnan(distance_km):
         return 120
-    hours = distance_km / 800.0        # ~800 km/h
-    base_min = hours * 60 + 40         # taxi + seguridad
-    penalty = 0 if nonstop else 60     # escala
-    return int(round(base_min + penalty))
+    hours = distance_km / 800.0
+    base_min = hours * 60 + 40
+    return int(round(base_min + (0 if nonstop else 60)))
 
-# === introspección del modelo para saber columnas y categorías ===
-def infer_features_from_model(m):
-    """
-    Devuelve: (num_cols, cat_cols, airlines, dow_categories)
-    Lee el ColumnTransformer 'preprocess' y extrae:
-      - columnas numéricas y categóricas que espera el modelo
-      - categorías del OneHotEncoder para 'main_airline' y 'flight_dayofweek'
-    """
-    if "preprocess" not in m.named_steps:
-        st.error("El modelo no tiene paso 'preprocess'.")
-        st.stop()
 
-    ct = m.named_steps["preprocess"]
-
-    # ct.transformers_ es una lista de tuplas: (name, transformer, columns)
-    # armamos un mapping {name: (transformer, columns)}
-    try:
-        tmap = {name: (trans, cols) for name, trans, cols in ct.transformers_}
-    except Exception as e:
-        st.error(f"No pude leer transformers_ del ColumnTransformer: {e}")
-        st.stop()
-
-    if "cat" not in tmap or "num" not in tmap:
-        st.error(f"No encontré transformadores 'cat' y 'num' en preprocess. Están: {list(tmap.keys())}")
-        st.stop()
-
+def infer_features_from_model(model):
+    """Extrae columnas y categorías desde el modelo entrenado."""
+    ct = model.named_steps["preprocess"]
+    tmap = {name: (trans, cols) for name, trans, cols in ct.transformers_}
     cat_trans, cat_cols = tmap["cat"]
     num_trans, num_cols = tmap["num"]
 
-    # El transformador categórico puede ser un Pipeline o directamente un OneHotEncoder
-    if hasattr(cat_trans, "named_steps"):  # Pipeline
-        if "onehot" not in cat_trans.named_steps:
-            st.error("No encontré el paso 'onehot' dentro del pipeline categórico.")
-            st.stop()
+    # Compatibilidad: cat_trans puede ser un Pipeline o un OneHotEncoder directo
+    if hasattr(cat_trans, "named_steps"):
         oh = cat_trans.named_steps["onehot"]
     else:
-        # No es pipeline; verificamos si es OneHotEncoder
         oh = cat_trans
 
-    if not hasattr(oh, "categories_"):
-        st.error("El OneHotEncoder aún no está ajustado (no tiene 'categories_').")
-        st.stop()
-
-    # Índices dentro de las categóricas
-    try:
-        idx_airline = cat_cols.index("main_airline")
-    except ValueError:
-        st.error(f"'main_airline' no está en las columnas categóricas: {cat_cols}")
-        st.stop()
-
-    try:
-        idx_dow = cat_cols.index("flight_dayofweek")
-    except ValueError:
-        st.error(f"'flight_dayofweek' no está en las columnas categóricas: {cat_cols}")
-        st.stop()
-
-    airlines = list(oh.categories_[idx_airline])
-    dow_categories = list(oh.categories_[idx_dow])
-
+    airlines = list(oh.categories_[cat_cols.index("main_airline")])
+    dow_categories = list(oh.categories_[cat_cols.index("flight_dayofweek")])
     return list(num_cols), list(cat_cols), airlines, dow_categories
 
 
-def normalize_dow_value(date: dt.date, dow_categories):
-    """
-    Devuelve flight_dayofweek en el mismo formato que el entrenamiento.
-    Si fue strings ('Mon'), devolvemos eso; si fue 0..6, devolvemos int.
-    """
-    sample = dow_categories[0]
-    if isinstance(sample, str):
-        return date.strftime("%a")  # 'Mon', 'Tue', ...
-    return date.weekday()           # 0..6
-
-# === construir exactamente la fila de features que el modelo espera ===
-def build_features(origin, dest, flight_date, cabin_value, airline_code, is_refundable, nonstop,
+def build_features(origin, dest, flight_date, airline_code, is_refundable, nonstop,
                    num_cols, cat_cols, dow_categories):
-    # Nota: cabin_value NO se usa porque el modelo v2 se entrenó sólo con coach
     today = dt.date.today()
     days_to_departure = max((flight_date - today).days, 0)
-
     distance = route_distance_km(origin, dest)
-    duration = estimate_duration_min(distance, nonstop=nonstop)
-
+    duration = estimate_duration_min(distance, nonstop)
     flight_month = flight_date.month
-    flight_day = flight_date.day
-    flight_dayofweek = normalize_dow_value(flight_date, dow_categories)
+    flight_dayofweek = flight_date.strftime("%a") if isinstance(dow_categories[0], str) else flight_date.weekday()
     is_weekend = int(flight_date.weekday() in (5, 6))
-    is_holiday_season = int(flight_month in (6, 7))  # regla usada en el training
+    is_holiday_season = int(flight_month in (6, 7))
 
     row = {
-        "days_to_departure": days_to_departure,
-        "totalTravelDistance": distance,
-        "duration_min": duration,
-        "startingAirport": origin,
-        "destinationAirport": dest,
-        "isRefundable": int(is_refundable),
-        "isNonStop": int(nonstop),
-        "main_airline": airline_code,
-        "flight_month": flight_month,
-        "flight_dayofweek": flight_dayofweek,
-        "flight_day": flight_day,
-        "is_weekend": is_weekend,
-        "is_holiday_season": is_holiday_season,
+        "days_to_departure": days_to_departure, "totalTravelDistance": distance,
+        "duration_min": duration, "startingAirport": origin, "destinationAirport": dest,
+        "isRefundable": int(is_refundable), "isNonStop": int(nonstop),
+        "main_airline": airline_code, "flight_month": flight_month,
+        "flight_dayofweek": flight_dayofweek, "flight_day": flight_date.day,
+        "is_weekend": is_weekend, "is_holiday_season": is_holiday_season,
     }
-    X = pd.DataFrame([row])
+    return pd.DataFrame([row])[list(num_cols) + list(cat_cols)]
 
-    # Orden exacto de columnas que espera el ColumnTransformer
-    expected = list(num_cols) + list(cat_cols)
-    missing = [c for c in expected if c not in X.columns]
-    if missing:
-        st.error(f"Faltan columnas para el modelo: {missing}")
-        st.stop()
-    return X[expected]
 
-def predict(model, X: pd.DataFrame) -> float:
-    y = model.predict(X)
-    return float(y[0])
+def mostrar_tarjetas(df, origen, destino, titulo):
+    """Muestra tarjetas visuales con el precio por aerolínea."""
+    st.markdown(f"### {titulo}")
+    for _, row in df.iterrows():
+        nombre, precio = row["Aerolínea"], row["Precio"]
+        clean_name = nombre.replace(" ", "_").replace(".", "").replace("-", "_")
+        logo_html = "✈️"
+        for name in [f"{clean_name}.png", f"{clean_name.lower()}.png", f"{clean_name.capitalize()}.png"]:
+            path = BASE_DIR / "assets" / "logos" / name
+            if path.exists():
+                with open(path, "rb") as img:
+                    logo_b64 = base64.b64encode(img.read()).decode()
+                    logo_html = f'<img src="data:image/png;base64,{logo_b64}" width="70">'
+                    break
 
-def format_currency(x: float) -> str:
-    try:
-        return f"${x:,.0f}"
-    except Exception:
-        return str(x)
+        st.markdown(f"""
+        <div style='display:flex;align-items:center;justify-content:space-between;
+        border:1px solid #ddd;border-radius:12px;padding:14px 20px;margin-bottom:10px;
+        background:#fafafa;box-shadow:2px 2px 6px rgba(0,0,0,0.05);'>
+            <div style='display:flex;align-items:center;gap:15px;'>
+                {logo_html}
+                <div><b>{nombre}</b><br><small>{origen} → {destino}</small></div>
+            </div>
+            <div><b style='color:#FF4B4B;font-size:1.3em;'>${precio:,.0f}</b></div>
+        </div>
+        """, unsafe_allow_html=True)
+
 
 # =======================
-# Cargar modelo y leer su “firma”
+# CARGAR MODELO
 # =======================
 model = load_model()
 num_cols, cat_cols, airlines_from_model, dow_categories = infer_features_from_model(model)
 
 # =======================
-# UI
+# INTERFAZ
 # =======================
 st.title("Vuelos")
 
-trip_type = segmented_or_radio(
-    "Tipo de viaje",
-    options=["Ida y vuelta", "Solo ida"],
-    default="Ida y vuelta",
-)
-
-c1, c2, c3, c4 = st.columns([1, 2, 1.2, 1.2])
+trip_type = st.radio("Tipo de viaje", ["Ida y vuelta", "Solo ida"], horizontal=True)
+c1, c2, c3, c4 = st.columns([1.2, 2, 1.3, 1.3])
 
 with c1:
-    origin = st.selectbox("Desde", ORIGINS, index=0)
-
+    origin_label = st.selectbox("¿Desde dónde?", [AIRPORT_NAMES[o] for o in ORIGINS])
+    origin = [k for k, v in AIRPORT_NAMES.items() if v == origin_label][0]
 with c2:
-    dest_options = [d for d in DESTS if d != origin]
-    default_dest_index = dest_options.index("MIA") if "MIA" in dest_options else 0
-    dest = st.selectbox("¿A dónde quieres ir?", dest_options, index=default_dest_index)
-
+    dest_label = st.selectbox("¿A dónde quieres ir?", [AIRPORT_NAMES[d] for d in DESTS if d != origin])
+    dest = [k for k, v in AIRPORT_NAMES.items() if v == dest_label][0]
 with c3:
-    dep_date = st.date_input("Salida", value=dt.date.today() + dt.timedelta(days=14), min_value=dt.date.today())
-
+    dep_date = st.date_input("Fecha de salida", dt.date.today() + dt.timedelta(days=14))
 with c4:
-    if trip_type == "Ida y vuelta":
-        ret_date = st.date_input("Regreso", value=dt.date.today() + dt.timedelta(days=21), min_value=dep_date)
+    ret_date = st.date_input("Fecha de vuelta", dt.date.today() + dt.timedelta(days=21)) if trip_type == "Ida y vuelta" else None
+
+st.markdown("<br>", unsafe_allow_html=True)
+cta = st.button("🔍 Buscar vuelos", type="primary", use_container_width=True)
+
+
+# =======================
+# PREDICCIÓN
+# =======================
+def ejecutar_prediccion():
+    X_out = pd.concat([
+        build_features(origin, dest, dep_date, a, False, True, num_cols, cat_cols, dow_categories).assign(Aerolínea=a)
+        for a in airlines_from_model
+    ], ignore_index=True)
+    y_out = model.predict(X_out)
+    df_out = pd.DataFrame({"Aerolínea": X_out["Aerolínea"], "Precio": y_out}).sort_values("Precio")
+
+    if trip_type == "Ida y vuelta" and ret_date:
+        X_back = pd.concat([
+            build_features(dest, origin, ret_date, a, False, True, num_cols, cat_cols, dow_categories).assign(Aerolínea=a)
+            for a in airlines_from_model
+        ], ignore_index=True)
+        y_back = model.predict(X_back)
+        df_back = pd.DataFrame({"Aerolínea": X_back["Aerolínea"], "Precio": y_back}).sort_values("Precio")
     else:
-        ret_date = None
-        st.write(" ")
+        df_back = None
 
-c5, c6, c7, c8 = st.columns([1.2, 1.2, 1, 1])
-with c5:
-    cabin_label = st.selectbox("Cabina (visual)", list(CABINS.keys()), index=0)
-    cabin_value = CABINS[cabin_label]  # no afecta la predicción en v2
-with c6:
-    airline_code = st.selectbox("Aerolínea (según entrenamiento)", options=sorted(airlines_from_model))
-with c7:
-    nonstop = toggle_or_checkbox("Solo vuelos directos", value=True)
-with c8:
-    is_refundable = toggle_or_checkbox("Reembolsable", value=False)
+    st.session_state.update({
+        "df_air_out": df_out,
+        "df_air_back": df_back,
+        "origin": origin,
+        "dest": dest,
+        "trip_type": trip_type
+    })
 
-st.caption("⚠️ En este modelo v2, la cabina no participa de la predicción (se entrenó con 'coach').")
-
-cta = primary_button("Explorar")
 
 if cta:
-    try:
-        # Ida
-        X_out = build_features(
-            origin=origin,
-            dest=dest,
-            flight_date=dep_date,
-            cabin_value=cabin_value,
-            airline_code=airline_code,
-            is_refundable=is_refundable,
-            nonstop=nonstop,
-            num_cols=num_cols,
-            cat_cols=cat_cols,
-            dow_categories=dow_categories,
-        )
-        price_out = predict(model, X_out)
+    ejecutar_prediccion()
 
-        # Vuelta (opcional)
-        total_price = price_out
-        if trip_type == "Ida y vuelta" and ret_date is not None:
-            X_back = build_features(
-                origin=dest,
-                dest=origin,
-                flight_date=ret_date,
-                cabin_value=cabin_value,
-                airline_code=airline_code,
-                is_refundable=is_refundable,
-                nonstop=nonstop,
-                num_cols=num_cols,
-                cat_cols=cat_cols,
-                dow_categories=dow_categories,
-            )
-            price_back = predict(model, X_back)
-            total_price += price_back
-        else:
-            price_back = None
+# =======================
+# RESULTADOS Y GRÁFICOS
+# =======================
+if "df_air_out" in st.session_state:
+    df_air_out = st.session_state.df_air_out
+    df_air_back = st.session_state.df_air_back
+    origin, dest, trip_type = st.session_state.origin, st.session_state.dest, st.session_state.trip_type
 
-        # Métricas
-        st.subheader("Precio estimado")
-        mc1, mc2, mc3 = st.columns(3)
-        with mc1:
-            st.metric("Ida", format_currency(price_out))
-        with mc2:
-            st.metric("Vuelta", format_currency(price_back) if price_back is not None else "—")
-        with mc3:
-            st.metric("Total", format_currency(total_price))
+    st.markdown("## ✈️ Resultados por aerolínea")
 
-        st.divider()
+    # Filtro de aerolíneas
+    todas = sorted(df_air_out["Aerolínea"].unique())
+    if "aerolineas" not in st.session_state:
+        st.session_state.aerolineas = todas
+    with st.expander("🎯 Filtrar por Aerolínea"):
+        seleccionadas = st.multiselect("Seleccioná aerolíneas:", todas, default=st.session_state.aerolineas)
+        st.session_state.aerolineas = seleccionadas
 
-        # Viz 1: Sensibilidad a la anticipación (días)
-        st.markdown("#### Cómo cambia el precio según la anticipación")
-        days_range = np.arange(1, 181)  # 1..180 días
-        X_sens = pd.concat([
-            build_features(
-                origin=origin,
-                dest=dest,
-                flight_date=dt.date.today() + dt.timedelta(days=int(d)),
-                cabin_value=cabin_value,
-                airline_code=airline_code,
-                is_refundable=is_refundable,
-                nonstop=nonstop,
-                num_cols=num_cols,
-                cat_cols=cat_cols,
-                dow_categories=dow_categories,
-            )
-            for d in days_range
-        ], ignore_index=True)
-        y_sens = model.predict(X_sens)
-        df_sens = pd.DataFrame({"days_to_departure": days_range, "pred_price": y_sens})
-        chart1 = (
-            alt.Chart(df_sens)
-            .mark_line()
-            .encode(
-                x=alt.X("days_to_departure:Q", title="Días hasta la salida"),
-                y=alt.Y("pred_price:Q", title="Precio estimado (USD)"),
-                tooltip=["days_to_departure", alt.Tooltip("pred_price:Q", format="$.0f")],
-            )
-            .properties(height=280)
-            .interactive()
-        )
-        st.altair_chart(chart1, use_container_width=True)
+    df_air_out_filtrado = df_air_out[df_air_out["Aerolínea"].isin(st.session_state.aerolineas)]
 
-        st.divider()
+    # Análisis de precios
+    st.markdown("### 📊 Análisis de precios")
+    c1, c2, c3 = st.columns(3)
+    with c1: tend = st.button("📈 Tendencia", use_container_width=True)
+    with c2: aero = st.button("💵 Aerolíneas", use_container_width=True)
+    with c3: temp = st.button("📅 Estacionalidad", use_container_width=True)
 
-        # Viz 2: Comparativa por aerolínea (misma ruta/fecha)
-        st.markdown("#### Comparar por aerolínea (misma ruta y fecha)")
-        airlines_to_compare = airlines_from_model  # podés limitar si son muchas
-        X_air = pd.concat([
-            build_features(
-                origin=origin,
-                dest=dest,
-                flight_date=dep_date,
-                cabin_value=cabin_value,
-                airline_code=a,
-                is_refundable=is_refundable,
-                nonstop=nonstop,
-                num_cols=num_cols,
-                cat_cols=cat_cols,
-                dow_categories=dow_categories,
-            ).assign(main_airline=a)
-            for a in airlines_to_compare
-        ], ignore_index=True)
-        y_air = model.predict(X_air.drop(columns=["main_airline"]))
-        df_air = pd.DataFrame({"Aerolínea": X_air["main_airline"], "Precio": y_air})
-        chart2 = (
-            alt.Chart(df_air)
-            .mark_bar()
-            .encode(
-                x=alt.X("Precio:Q", title="Precio estimado (USD)"),
-                y=alt.Y("Aerolínea:N", sort="-x"),
-                tooltip=[alt.Tooltip("Precio:Q", format="$.0f")],
-            )
-            .properties(height=320)
-            .interactive()
-        )
-        st.altair_chart(chart2, use_container_width=True)
+    for key in ["mostrar_tend", "mostrar_aero", "mostrar_temp"]:
+        if key not in st.session_state:
+            st.session_state[key] = False
 
-        st.info("ℹ️ Estimaciones basadas en un modelo entrenado. Distancia y duración son aproximadas (demo).")
-    except Exception as e:
-        st.exception(e)
-else:
-    st.caption("Elegí ruta, fechas y opciones. Luego presioná **Explorar** para estimar precios.")
+    if tend:
+        st.session_state.mostrar_tend = True
+    if aero:
+        st.session_state.mostrar_aero = True
+    if temp:
+        st.session_state.mostrar_temp = True
+
+    # === Gráficos con botón de cierre ===
+    def mostrar_grafico_tendencia():
+        st.markdown("## 📈 Evolución del precio estimado")
+        st.caption("Muestra cómo varía el precio estimado según los días de anticipación del vuelo.")
+        dias = list(range(120, -1, -10))
+        precios = []
+        for d in dias:
+            try:
+                fecha_simulada = dep_date - dt.timedelta(days=d)
+                pred = model.predict(build_features(origin, dest, fecha_simulada,
+                                                    "Delta", False, True, num_cols, cat_cols, dow_categories))[0]
+                precios.append(pred)
+            except Exception:
+                precios.append(None)
+        df_tend = pd.DataFrame({"Días antes del vuelo": dias, "Precio estimado (USD)": precios})
+        chart = alt.Chart(df_tend).mark_line(point=True, color="#1E88E5", interpolate="monotone") \
+            .encode(x=alt.X("Días antes del vuelo:Q", sort="descending"),
+                    y="Precio estimado (USD):Q", tooltip=["Días antes del vuelo", "Precio estimado (USD)"]) \
+            .properties(width=900, height=450)
+        st.altair_chart(chart, use_container_width=True)
+        if st.button("❌ Cerrar gráfico", key="close_tend", use_container_width=True):
+            st.session_state.mostrar_tend = False
+
+    def mostrar_grafico_aerolineas():
+        st.markdown("## 💵 Comparación de precios por aerolínea")
+        st.caption("Compara los precios estimados promedio entre las aerolíneas para la ruta seleccionada.")
+        df_sorted = df_air_out_filtrado.sort_values("Precio", ascending=True)
+        df_sorted["Precio redondeado"] = df_sorted["Precio"].apply(round)
+        chart = alt.Chart(df_sorted).mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6) \
+            .encode(y=alt.Y("Aerolínea:N", sort="-x"), x=alt.X("Precio redondeado:Q", title="Precio (USD)"),
+                    color=alt.Color("Aerolínea:N", legend=None, scale=alt.Scale(scheme="tableau10")),
+                    tooltip=["Aerolínea", "Precio redondeado"]) \
+            .properties(width=900, height=450)
+        st.altair_chart(chart, use_container_width=True)
+        if st.button("❌ Cerrar gráfico", key="close_aero", use_container_width=True):
+            st.session_state.mostrar_aero = False
+
+    def mostrar_grafico_estacionalidad():
+        st.markdown("## 📅 Evolución del precio promedio por mes")
+        st.caption("Permite identificar temporadas altas o bajas según el mes del viaje.")
+        meses = list(range(1, 13))
+        precios = []
+        for m in meses:
+            try:
+                pred = model.predict(
+                    build_features(origin, dest, dt.date(2025, m, 15),
+                                   "Delta", False, True, num_cols, cat_cols, dow_categories)
+                )[0]
+                precios.append(pred)
+            except Exception:
+                precios.append(None)
+        nombres_meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
+                         "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+        df_mes = pd.DataFrame({
+            "Mes": pd.Categorical(nombres_meses, categories=nombres_meses, ordered=True),
+            "Precio promedio (USD)": precios
+        })
+        chart = alt.Chart(df_mes).mark_line(point=alt.OverlayMarkDef(color="#1E88E5", size=60),
+                                            interpolate="monotone", color="#43A047") \
+            .encode(x="Mes:O", y="Precio promedio (USD):Q", tooltip=["Mes", "Precio promedio (USD)"]) \
+            .properties(width=900, height=450)
+        st.altair_chart(chart, use_container_width=True)
+        if st.button("❌ Cerrar gráfico", key="close_temp", use_container_width=True):
+            st.session_state.mostrar_temp = False
+
+    if st.session_state.mostrar_tend:
+        mostrar_grafico_tendencia()
+    if st.session_state.mostrar_aero:
+        mostrar_grafico_aerolineas()
+    if st.session_state.mostrar_temp:
+        mostrar_grafico_estacionalidad()
+
+    # TARJETAS DE RESULTADOS
+    st.markdown("---")
+    tabs = st.tabs(["✈️ Vuelos de ida"] + (["🔁 Vuelos de vuelta"] if df_air_back is not None else []))
+    with tabs[0]:
+        mostrar_tarjetas(df_air_out_filtrado, origin, dest, "Vuelos de ida")
+    if df_air_back is not None:
+        with tabs[1]:
+            mostrar_tarjetas(df_air_back, dest, origin, "Vuelos de vuelta")
