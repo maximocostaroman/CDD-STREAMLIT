@@ -1,5 +1,5 @@
 # ===============================================
-# APP: Flight Price Explorer (JFK ⇄ MIA)
+# APP: Flight Price Explorer
 # ===============================================
 import os
 import math
