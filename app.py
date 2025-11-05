@@ -312,52 +312,63 @@ if "df_air_out" in st.session_state:
         for d in dias:
             try:
                 fecha_simulada = dep_date - dt.timedelta(days=d)
-                pred = model.predict(build_features(origin, dest, fecha_simulada,
-                                                    "Delta", False, True, num_cols, cat_cols, dow_categories))[0]
+                pred = model.predict(
+                    build_features(origin, dest, fecha_simulada,
+                                   "Delta", False, True, num_cols, cat_cols, dow_categories)
+                )[0]
                 precios.append(pred)
             except Exception:
                 precios.append(None)
         df_tend = pd.DataFrame({"Días antes del vuelo": dias, "Precio estimado (USD)": precios})
-        chart = alt.Chart(df_tend).mark_line(point=True, color="#1E88E5", interpolate="monotone") \
-            .encode(x=alt.X("Días antes del vuelo:Q", sort="descending"),
-                    y="Precio estimado (USD):Q", tooltip=["Días antes del vuelo", "Precio estimado (USD)"]) \
+        chart = (
+            alt.Chart(df_tend)
+            .mark_line(point=True, color="#1E88E5", interpolate="monotone")
+            .encode(
+                x=alt.X("Días antes del vuelo:Q", sort="descending", title="Días antes del vuelo"),
+                y=alt.Y("Precio estimado (USD):Q", title="Precio estimado (USD)"),
+                tooltip=["Días antes del vuelo", "Precio estimado (USD)"]
+            )
             .properties(width=900, height=450)
+        )
         st.altair_chart(chart, use_container_width=True)
         st.button(
             "❌ Cerrar gráfico",
-            key="close_temp",
+            key="close_tend",
             use_container_width=True,
-            on_click=lambda: st.session_state.update({"mostrar_temp": False})
+            on_click=lambda: st.session_state.update({"mostrar_tend": False})
         )
-
+    
+    
     def mostrar_grafico_aerolineas():
         st.markdown("## 💵 Comparación de precios por aerolínea")
         st.caption("Compara los precios estimados promedio entre las aerolíneas para la ruta seleccionada.")
         df_sorted = df_air_out_filtrado.sort_values("Precio", ascending=True)
         df_sorted["Precio redondeado"] = df_sorted["Precio"].apply(round)
-        chart = alt.Chart(df_sorted).mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6) \
-            .encode(y=alt.Y("Aerolínea:N", sort="-x"), x=alt.X("Precio redondeado:Q", title="Precio (USD)"),
-                    color=alt.Color("Aerolínea:N", legend=None, scale=alt.Scale(scheme="tableau10")),
-                    tooltip=["Aerolínea", "Precio redondeado"]) \
+        chart = (
+            alt.Chart(df_sorted)
+            .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+            .encode(
+                y=alt.Y("Aerolínea:N", sort="-x", title="Aerolínea"),
+                x=alt.X("Precio redondeado:Q", title="Precio estimado (USD)"),
+                color=alt.Color("Aerolínea:N", legend=None, scale=alt.Scale(scheme="tableau10")),
+                tooltip=["Aerolínea", "Precio redondeado"]
+            )
             .properties(width=900, height=450)
+        )
         st.altair_chart(chart, use_container_width=True)
         st.button(
             "❌ Cerrar gráfico",
-            key="close_temp",
+            key="close_aero",
             use_container_width=True,
-            on_click=lambda: st.session_state.update({"mostrar_temp": False})
+            on_click=lambda: st.session_state.update({"mostrar_aero": False})
         )
-
+    
+    
     def mostrar_grafico_estacionalidad():
         st.markdown("## 📅 Evolución del precio promedio por mes")
-        st.caption("Muestra cómo varían los precios estimados de los vuelos a lo largo del año, "
-                   "permitiendo identificar posibles temporadas altas o bajas.")
-    
-        # --- Generar predicciones por mes (1–12)
+        st.caption("Muestra cómo varían los precios estimados de los vuelos a lo largo del año, permitiendo identificar temporadas altas o bajas.")
         meses = list(range(1, 13))
-        nombres_meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
-                         "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-    
+        nombres_meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
         precios = []
         for m in meses:
             try:
@@ -368,14 +379,10 @@ if "df_air_out" in st.session_state:
                 precios.append(pred)
             except Exception:
                 precios.append(None)
-    
-        # --- Crear DataFrame con orden cronológico fijo
         df_mes = pd.DataFrame({
             "Mes": pd.Categorical(nombres_meses, categories=nombres_meses, ordered=True),
             "Precio promedio (USD)": precios
         })
-    
-        # --- Gráfico con línea + puntos de color alternado
         chart = (
             alt.Chart(df_mes)
             .mark_line(interpolate="monotone", color="#2E7D32", strokeWidth=3)
@@ -394,11 +401,7 @@ if "df_air_out" in st.session_state:
                 tooltip=["Mes", "Precio promedio (USD)"]
             )
         )
-    
-        # --- Mostrar gráfico en Streamlit
         st.altair_chart(chart, use_container_width=True)
-    
-        # --- Botón de cierre
         st.button(
             "❌ Cerrar gráfico",
             key="close_temp",
@@ -406,12 +409,15 @@ if "df_air_out" in st.session_state:
             on_click=lambda: st.session_state.update({"mostrar_temp": False})
         )
     
+    
+    # === Mostrar gráficos activos ===
     if st.session_state.mostrar_tend:
         mostrar_grafico_tendencia()
     if st.session_state.mostrar_aero:
         mostrar_grafico_aerolineas()
     if st.session_state.mostrar_temp:
         mostrar_grafico_estacionalidad()
+
 
     # TARJETAS DE RESULTADOS
     st.markdown("---")
