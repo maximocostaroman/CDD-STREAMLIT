@@ -275,19 +275,20 @@ if "df_air_out" in st.session_state:
 
     st.markdown("## ✈️ Resultados por aerolínea")
     # ==============================
-    # FILTRO DE AEROLÍNEAS (con estado estable)
+    # FILTRO DE AEROLÍNEAS
     # ==============================
     todas = sorted(df_air_out["Aerolínea"].unique())
     
-    # Inicializar la selección si es la primera vez
+    # Inicializar variable de estado
     if "aerolineas" not in st.session_state:
         st.session_state.aerolineas = todas.copy()
     
     def actualizar_aerolineas():
-        """Callback que se ejecuta al modificar el multiselect."""
+        """Actualiza la lista de aerolíneas seleccionadas y fuerza rerun."""
         st.session_state.aerolineas = st.session_state._seleccion_temp
+        st.experimental_rerun()  # 🚀 Fuerza actualización inmediata
     
-    with st.expander("🎯 Filtrar por Aerolínea"):
+    with st.expander("🎯 Filtrar por Aerolínea", expanded=False):
         st.session_state._seleccion_temp = st.multiselect(
             "Seleccioná aerolíneas:",
             todas,
@@ -296,7 +297,9 @@ if "df_air_out" in st.session_state:
             on_change=actualizar_aerolineas
         )
     
+    # Aplicar filtro directamente al DataFrame
     df_air_out_filtrado = df_air_out[df_air_out["Aerolínea"].isin(st.session_state.aerolineas)]
+
 
 
     # Análisis de precios
