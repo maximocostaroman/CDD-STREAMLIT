@@ -324,8 +324,14 @@ if "df_air_out" in st.session_state:
 
     def mostrar_grafico_estacionalidad():
         st.markdown("## 📅 Evolución del precio promedio por mes")
-        st.caption("Permite identificar temporadas altas o bajas según el mes del viaje.")
+        st.caption("Muestra cómo varían los precios estimados de los vuelos a lo largo del año, "
+                   "permitiendo identificar posibles temporadas altas o bajas.")
+    
+        # --- Generar predicciones por mes (1–12)
         meses = list(range(1, 13))
+        nombres_meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
+                         "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+    
         precios = []
         for m in meses:
             try:
@@ -336,19 +342,40 @@ if "df_air_out" in st.session_state:
                 precios.append(pred)
             except Exception:
                 precios.append(None)
-        nombres_meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
-                         "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+    
+        # --- Crear DataFrame con orden cronológico fijo
         df_mes = pd.DataFrame({
             "Mes": pd.Categorical(nombres_meses, categories=nombres_meses, ordered=True),
             "Precio promedio (USD)": precios
         })
-        chart = alt.Chart(df_mes).mark_line(point=alt.OverlayMarkDef(color="#1E88E5", size=60),
-                                            interpolate="monotone", color="#43A047") \
-            .encode(x="Mes:O", y="Precio promedio (USD):Q", tooltip=["Mes", "Precio promedio (USD)"]) \
+    
+        # --- Gráfico con línea + puntos de color alternado
+        chart = (
+            alt.Chart(df_mes)
+            .mark_line(interpolate="monotone", color="#2E7D32", strokeWidth=3)
+            .encode(
+                x=alt.X("Mes:N", sort=nombres_meses, title="Mes del año"),
+                y=alt.Y("Precio promedio (USD):Q", title="Precio promedio (USD)"),
+                tooltip=["Mes", "Precio promedio (USD)"]
+            )
             .properties(width=900, height=450)
+            +
+            alt.Chart(df_mes)
+            .mark_point(filled=True, size=80, color="#43A047")
+            .encode(
+                x=alt.X("Mes:N", sort=nombres_meses),
+                y="Precio promedio (USD):Q",
+                tooltip=["Mes", "Precio promedio (USD)"]
+            )
+        )
+    
+        # --- Mostrar gráfico en Streamlit
         st.altair_chart(chart, use_container_width=True)
+    
+        # --- Botón de cierre
         if st.button("❌ Cerrar gráfico", key="close_temp", use_container_width=True):
             st.session_state.mostrar_temp = False
+    
 
     if st.session_state.mostrar_tend:
         mostrar_grafico_tendencia()
