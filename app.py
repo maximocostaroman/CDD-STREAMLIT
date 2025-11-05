@@ -206,9 +206,17 @@ with c2:
     dest_label = st.selectbox("¿A dónde quieres ir?", [AIRPORT_NAMES[d] for d in DESTS if d != origin])
     dest = [k for k, v in AIRPORT_NAMES.items() if v == dest_label][0]
 with c3:
-    dep_date = st.date_input("Fecha de salida", dt.date.today() + dt.timedelta(days=14))
+    dep_date = st.date_input(
+        "Fecha de salida",
+        dt.date.today() + dt.timedelta(days=14),
+        format="DD/MM/YYYY"
+    )
 with c4:
-    ret_date = st.date_input("Fecha de vuelta", dt.date.today() + dt.timedelta(days=21)) if trip_type == "Ida y vuelta" else None
+    ret_date = st.date_input(
+        "Fecha de vuelta",
+        dt.date.today() + dt.timedelta(days=21),
+        format="DD/MM/YYYY"
+    ) if trip_type == "Ida y vuelta" else None
 
 st.markdown("<br>", unsafe_allow_html=True)
 cta = st.button("🔍 Buscar vuelos", type="primary", use_container_width=True)
