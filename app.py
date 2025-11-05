@@ -194,40 +194,43 @@ num_cols, cat_cols, airlines_from_model, dow_categories = infer_features_from_mo
 # =======================
 # INTERFAZ VISUAL (rediseñada)
 # =======================
+# =======================
+# INTERFAZ VISUAL (ajustada)
+# =======================
 st.markdown(
     """
     <style>
-    /* === Encabezado estilo bandera elegante === */
+    /* === Encabezado estilo bandera elegante y más compacto === */
     .header-container {
-        background: linear-gradient(180deg, #0A3161 60%, #ffffff 60%, #B31942 61%);
-        border-radius: 12px;
-        padding: 55px 20px 65px 20px;
+        background: linear-gradient(180deg, #0A3161 65%, #B31942 65%);
+        border-radius: 10px;
+        padding: 35px 20px 45px 20px;
         color: white;
         text-align: center;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        margin-bottom: 30px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+        margin-bottom: 35px;
     }
     .header-stars {
         color: #ffffff;
-        font-size: 18px;
+        font-size: 16px;
         letter-spacing: 8px;
-        margin-bottom: 10px;
+        margin-bottom: 6px;
         display: block;
     }
     .header-title {
-        font-size: 2.4em;
+        font-size: 2.1em;
         font-weight: 800;
         color: #ffffff;
-        margin-bottom: 5px;
+        margin-bottom: 4px;
     }
     .header-sub {
-        font-size: 1.1em;
-        color: #EAEAEA;
+        font-size: 1em;
+        color: #f1f1f1;
         font-style: italic;
     }
 
     /* === Inputs y botón === */
-    div[data-baseweb="select"], div.stDateInput, div.stRadio, div.stTextInput {
+    div[data-baseweb="select"], div.stDateInput {
         border-radius: 8px !important;
         padding: 4px;
     }
@@ -241,9 +244,9 @@ st.markdown(
         border: none !important;
         border-radius: 10px !important;
         font-weight: 600 !important;
-        font-size: 1.1em !important;
-        padding: 12px 0 !important;
-        transition: all 0.3s ease-in-out;
+        font-size: 1.05em !important;
+        padding: 10px 0 !important;
+        transition: all 0.25s ease-in-out;
     }
     div.stButton > button:hover {
         background-color: #8F142F !important;
@@ -255,9 +258,9 @@ st.markdown(
         font-weight: 600;
     }
 
-    /* === Campos === */
-    .css-1d391kg, .stSelectbox, .stDateInput {
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    /* === Fondo general === */
+    [data-testid="stAppViewContainer"] {
+        background: linear-gradient(180deg, #f9f9f9 0%, #ffffff 60%);
     }
     </style>
     """,
@@ -275,6 +278,7 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
 
 # --- Panel de búsqueda ---
 st.markdown("### 🔍 Buscador de vuelos\n")
