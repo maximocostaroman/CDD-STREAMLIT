@@ -296,6 +296,16 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# --- Encabezado bandera ---
+st.markdown("""
+<div class="header-container">
+    <span class="header-stars">★ ★ ★ ★ ★ ★</span>
+    <h1 class="header-title">Vuelos de Cabotaje EE. UU.</h1>
+    <p class="header-sub">Explorá precios, aerolíneas y tendencias de vuelos domésticos</p>
+</div>
+""", unsafe_allow_html=True)
+
+
 
 # --- Panel de búsqueda ---
 st.markdown("### 🔍 Buscador de vuelos\n")
