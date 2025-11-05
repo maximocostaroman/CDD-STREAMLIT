@@ -274,16 +274,30 @@ if "df_air_out" in st.session_state:
     origin, dest, trip_type = st.session_state.origin, st.session_state.dest, st.session_state.trip_type
 
     st.markdown("## ✈️ Resultados por aerolínea")
-
-    # Filtro de aerolíneas
+    # ==============================
+    # FILTRO DE AEROLÍNEAS (con estado estable)
+    # ==============================
     todas = sorted(df_air_out["Aerolínea"].unique())
+    
+    # Inicializar la selección si es la primera vez
     if "aerolineas" not in st.session_state:
-        st.session_state.aerolineas = todas
+        st.session_state.aerolineas = todas.copy()
+    
+    def actualizar_aerolineas():
+        """Callback que se ejecuta al modificar el multiselect."""
+        st.session_state.aerolineas = st.session_state._seleccion_temp
+    
     with st.expander("🎯 Filtrar por Aerolínea"):
-        seleccionadas = st.multiselect("Seleccioná aerolíneas:", todas, default=st.session_state.aerolineas)
-        st.session_state.aerolineas = seleccionadas
-
+        st.session_state._seleccion_temp = st.multiselect(
+            "Seleccioná aerolíneas:",
+            todas,
+            default=st.session_state.aerolineas,
+            key="multiselect_aero",
+            on_change=actualizar_aerolineas
+        )
+    
     df_air_out_filtrado = df_air_out[df_air_out["Aerolínea"].isin(st.session_state.aerolineas)]
+
 
     # Análisis de precios
     st.markdown("### 📊 Análisis de precios")
