@@ -279,6 +279,40 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+/* === Tabs de Vuelos de ida / vuelta === */
+div[data-baseweb="tab-list"] {
+    justify-content: center !important;
+    margin-top: 15px;
+    margin-bottom: 10px;
+    gap: 10px;
+}
+
+button[data-baseweb="tab"] {
+    background-color: #f9f9f9 !important;
+    color: #333333 !important;
+    font-weight: 700 !important;
+    font-size: 1.1em !important;
+    text-transform: uppercase !important;
+    border-radius: 10px 10px 0 0 !important;
+    padding: 12px 24px !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    transition: all 0.3s ease-in-out;
+    border-bottom: 4px solid transparent !important;
+}
+
+button[data-baseweb="tab"]:hover {
+    background-color: #f1f1f1 !important;
+    transform: scale(1.02);
+}
+
+button[data-baseweb="tab"][aria-selected="true"] {
+    color: #B31942 !important;
+    border-bottom: 4px solid #B31942 !important;
+    background-color: #ffffff !important;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.08) !important;
+}
+
+
 
 # --- Panel de búsqueda ---
 st.markdown("### 🔍 Buscador de vuelos\n")
