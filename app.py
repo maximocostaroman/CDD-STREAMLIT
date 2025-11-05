@@ -192,15 +192,11 @@ model = load_model()
 num_cols, cat_cols, airlines_from_model, dow_categories = infer_features_from_model(model)
 
 # =======================
-# INTERFAZ VISUAL (rediseñada)
-# =======================
-# =======================
-# INTERFAZ VISUAL (ajustada)
-# =======================
+# INTERFAZ VISUAL
 st.markdown(
     """
     <style>
-    /* === Encabezado estilo bandera elegante y más compacto === */
+    /* === Encabezado bandera elegante === */
     .header-container {
         background: linear-gradient(180deg, #0A3161 65%, #B31942 65%);
         border-radius: 10px;
@@ -229,7 +225,7 @@ st.markdown(
         font-style: italic;
     }
 
-    /* === Inputs y botón === */
+    /* === Inputs y botones === */
     div[data-baseweb="select"], div.stDateInput {
         border-radius: 8px !important;
         padding: 4px;
@@ -258,6 +254,39 @@ st.markdown(
         font-weight: 600;
     }
 
+    /* === Tabs de Vuelos de ida / vuelta === */
+    div[data-baseweb="tab-list"] {
+        justify-content: center !important;
+        margin-top: 15px;
+        margin-bottom: 10px;
+        gap: 10px;
+    }
+
+    button[data-baseweb="tab"] {
+        background-color: #f9f9f9 !important;
+        color: #333333 !important;
+        font-weight: 700 !important;
+        font-size: 1.1em !important;
+        text-transform: uppercase !important;
+        border-radius: 10px 10px 0 0 !important;
+        padding: 12px 24px !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        transition: all 0.3s ease-in-out;
+        border-bottom: 4px solid transparent !important;
+    }
+
+    button[data-baseweb="tab"]:hover {
+        background-color: #f1f1f1 !important;
+        transform: scale(1.02);
+    }
+
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: #B31942 !important;
+        border-bottom: 4px solid #B31942 !important;
+        background-color: #ffffff !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.08) !important;
+    }
+
     /* === Fondo general === */
     [data-testid="stAppViewContainer"] {
         background: linear-gradient(180deg, #f9f9f9 0%, #ffffff 60%);
@@ -266,52 +295,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-# --- Encabezado ---
-st.markdown(
-    """
-    <div class="header-container">
-        <span class="header-stars">★ ★ ★ ★ ★ ★</span>
-        <div class="header-title">Vuelos de Cabotaje EE. UU.</div>
-        <div class="header-sub">Explorá precios, aerolíneas y tendencias de vuelos domésticos</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-/* === Tabs de Vuelos de ida / vuelta === */
-div[data-baseweb="tab-list"] {
-    justify-content: center !important;
-    margin-top: 15px;
-    margin-bottom: 10px;
-    gap: 10px;
-}
-
-button[data-baseweb="tab"] {
-    background-color: #f9f9f9 !important;
-    color: #333333 !important;
-    font-weight: 700 !important;
-    font-size: 1.1em !important;
-    text-transform: uppercase !important;
-    border-radius: 10px 10px 0 0 !important;
-    padding: 12px 24px !important;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-    transition: all 0.3s ease-in-out;
-    border-bottom: 4px solid transparent !important;
-}
-
-button[data-baseweb="tab"]:hover {
-    background-color: #f1f1f1 !important;
-    transform: scale(1.02);
-}
-
-button[data-baseweb="tab"][aria-selected="true"] {
-    color: #B31942 !important;
-    border-bottom: 4px solid #B31942 !important;
-    background-color: #ffffff !important;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.08) !important;
-}
-
 
 
 # --- Panel de búsqueda ---
