@@ -192,91 +192,95 @@ model = load_model()
 num_cols, cat_cols, airlines_from_model, dow_categories = infer_features_from_model(model)
 
 # =======================
-# INTERFAZ VISUAL
+# INTERFAZ VISUAL (rediseñada)
 # =======================
-# --- Estilos CSS personalizados ---
 st.markdown(
     """
     <style>
-    /* ======= HEADER BANDERA ======= */
+    /* === Encabezado estilo bandera elegante === */
     .header-container {
-        background: linear-gradient(180deg, #0A3161 70%, #B31942 70%);
+        background: linear-gradient(180deg, #0A3161 60%, #ffffff 60%, #B31942 61%);
+        border-radius: 12px;
+        padding: 55px 20px 65px 20px;
         color: white;
         text-align: center;
-        padding: 25px 10px 35px 10px;
-        border-radius: 10px;
-        position: relative;
-        box-shadow: 0 3px 6px rgba(0,0,0,0.3);
-    }
-    .header-title {
-        font-size: 2.2em;
-        font-weight: 700;
-        letter-spacing: 1px;
-        color: white;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        margin-bottom: 30px;
     }
     .header-stars {
-        position: absolute;
-        top: 8px;
-        left: 50%;
-        transform: translateX(-50%);
+        color: #ffffff;
         font-size: 18px;
-        letter-spacing: 6px;
+        letter-spacing: 8px;
+        margin-bottom: 10px;
+        display: block;
     }
-    .subheader {
-        font-size: 1em;
-        color: #f1f1f1;
+    .header-title {
+        font-size: 2.4em;
+        font-weight: 800;
+        color: #ffffff;
+        margin-bottom: 5px;
+    }
+    .header-sub {
+        font-size: 1.1em;
+        color: #EAEAEA;
         font-style: italic;
     }
 
-    /* ======= INPUTS Y BOTONES ======= */
-    div[data-baseweb="select"] {
-        border-radius: 6px;
+    /* === Inputs y botón === */
+    div[data-baseweb="select"], div.stDateInput, div.stRadio, div.stTextInput {
+        border-radius: 8px !important;
+        padding: 4px;
     }
     div.stDateInput > div > input {
-        border-radius: 6px !important;
-        padding: 5px 10px !important;
+        border-radius: 8px !important;
+        padding: 8px 10px !important;
     }
     div.stButton > button {
         background-color: #B31942 !important;
         color: white !important;
         border: none !important;
-        border-radius: 8px !important;
+        border-radius: 10px !important;
         font-weight: 600 !important;
         font-size: 1.1em !important;
-        padding: 10px 0 !important;
+        padding: 12px 0 !important;
+        transition: all 0.3s ease-in-out;
     }
     div.stButton > button:hover {
-        background-color: #861B2D !important;
-        color: #fff !important;
+        background-color: #8F142F !important;
         transform: scale(1.02);
     }
 
-    /* ======= SEPARADORES ======= */
-    hr {
-        border: 1px solid #B31942;
-        margin: 25px 0;
+    /* === Radio buttons === */
+    div[role="radiogroup"] label {
+        font-weight: 600;
+    }
+
+    /* === Campos === */
+    .css-1d391kg, .stSelectbox, .stDateInput {
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# --- Encabezado principal ---
+# --- Encabezado ---
 st.markdown(
     """
     <div class="header-container">
-        <div class="header-stars">★ ★ ★ ★ ★ ★</div>
-        <div class="header-title">🇺🇸 Vuelos de Cabotaje EE. UU.</div>
-        <div class="subheader">Explorá precios, aerolíneas y tendencias de vuelos domésticos</div>
+        <span class="header-stars">★ ★ ★ ★ ★ ★</span>
+        <div class="header-title">Vuelos de Cabotaje EE. UU.</div>
+        <div class="header-sub">Explorá precios, aerolíneas y tendencias de vuelos domésticos</div>
     </div>
-    <br>
     """,
     unsafe_allow_html=True,
 )
 
 # --- Panel de búsqueda ---
+st.markdown("### 🔍 Buscador de vuelos\n")
 trip_type = st.radio("✈️ Tipo de viaje", ["Ida y vuelta", "Solo ida"], horizontal=True)
-c1, c2, c3, c4 = st.columns([1.3, 2, 1.3, 1.3])
+
+c1, c2, c3, c4 = st.columns([1.2, 2, 1.3, 1.3])
 
 with c1:
     origin_label = st.selectbox("🛫 Origen", [AIRPORT_NAMES[o] for o in ORIGINS])
@@ -307,8 +311,8 @@ with c4:
         st.write("")
 
 st.markdown("<br>", unsafe_allow_html=True)
-cta = st.button("🔍 Buscar vuelos", type="primary", use_container_width=True)
-st.markdown("<hr>", unsafe_allow_html=True)
+cta = st.button("🔎 Buscar vuelos", type="primary", use_container_width=True)
+st.markdown("<br><hr>", unsafe_allow_html=True)
 
 # =======================
 # PREDICCIÓN
