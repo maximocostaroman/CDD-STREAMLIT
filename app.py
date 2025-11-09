@@ -309,9 +309,9 @@ st.markdown("""
 
 # --- Panel de búsqueda ---
 st.markdown("### 🔍 Buscador de vuelos\n")
-trip_type = st.radio("✈️ Tipo de viaje", ["Ida y vuelta", "Solo ida"], horizontal=True)
+st.markdown("✈️ Tipo de viaje: Solo ida")
 
-c1, c2, c3, c4 = st.columns([1.2, 2, 1.3, 1.3])
+c1, c2, c3 = st.columns([1.2, 2, 1.5])
 
 with c1:
     origin_label = st.selectbox("🛫 Origen", [AIRPORT_NAMES[o] for o in ORIGINS])
@@ -328,19 +328,7 @@ with c3:
         min_value=dt.date.today(),
         format="DD/MM/YYYY"
     )
-
-with c4:
-    if trip_type == "Ida y vuelta":
-        ret_date = st.date_input(
-            "🔁 Fecha de vuelta",
-            value=dt.date.today() + dt.timedelta(days=21),
-            min_value=dep_date,
-            format="DD/MM/YYYY"
-        )
-    else:
-        ret_date = None
-        st.write("")
-
+    
 st.markdown("<br>", unsafe_allow_html=True)
 cta = st.button("🔎 Buscar vuelos", type="primary", use_container_width=True)
 st.markdown("<br><hr>", unsafe_allow_html=True)
@@ -350,30 +338,22 @@ st.markdown("<br><hr>", unsafe_allow_html=True)
 # =======================
 def ejecutar_prediccion():
     X_out = pd.concat([
-        build_features(origin, dest, dep_date, a, False, True, num_cols, cat_cols, dow_categories).assign(Aerolínea=a)
+        build_features(origin, dest, dep_date, a, False, True,
+                       num_cols, cat_cols, dow_categories).assign(Aerolínea=a)
         for a in airlines_from_model
     ], ignore_index=True)
-    y_out = model.predict(X_out)
-    df_out = pd.DataFrame({"Aerolínea": X_out["Aerolínea"], "Precio": y_out}).sort_values("Precio")
 
-    if trip_type == "Ida y vuelta" and ret_date:
-        X_back = pd.concat([
-            build_features(dest, origin, ret_date, a, False, True, num_cols, cat_cols, dow_categories).assign(Aerolínea=a)
-            for a in airlines_from_model
-        ], ignore_index=True)
-        y_back = model.predict(X_back)
-        df_back = pd.DataFrame({"Aerolínea": X_back["Aerolínea"], "Precio": y_back}).sort_values("Precio")
-    else:
-        df_back = None
+    y_out = model.predict(X_out)
+    df_out = pd.DataFrame({
+        "Aerolínea": X_out["Aerolínea"],
+        "Precio": y_out
+    }).sort_values("Precio")
 
     st.session_state.update({
         "df_air_out": df_out,
-        "df_air_back": df_back,
         "origin": origin,
-        "dest": dest,
-        "trip_type": trip_type
+        "dest": dest
     })
-
 
 if cta:
     ejecutar_prediccion()
@@ -383,8 +363,7 @@ if cta:
 # =======================
 if "df_air_out" in st.session_state:
     df_air_out = st.session_state.df_air_out
-    df_air_back = st.session_state.df_air_back
-    origin, dest, trip_type = st.session_state.origin, st.session_state.dest, st.session_state.trip_type
+    origin, dest = st.session_state.origin, st.session_state.dest
 
     st.markdown("## ✈️ Resultados por aerolínea")
     # ==============================
@@ -405,7 +384,6 @@ if "df_air_out" in st.session_state:
             help="Marcá o desmarcá para seleccionar o quitar todas las aerolíneas."
         )
     
-        # --- Si cambia el toggle, actualiza y recarga ---
         if toggle_todas != st.session_state.todas_seleccionadas:
             st.session_state.todas_seleccionadas = toggle_todas
             st.session_state.aerolineas_seleccionadas = (
@@ -571,11 +549,6 @@ if "df_air_out" in st.session_state:
         mostrar_grafico_estacionalidad()
 
 
-    # TARJETAS DE RESULTADOS
+    # === Tarjetas de resultados ===
     st.markdown("---")
-    tabs = st.tabs(["✈️ Vuelos de ida"] + (["🔁 Vuelos de vuelta"] if df_air_back is not None else []))
-    with tabs[0]:
-        mostrar_tarjetas(df_air_out_filtrado, origin, dest, "Vuelos de ida")
-    if df_air_back is not None:
-        with tabs[1]:
-            mostrar_tarjetas(df_air_back, dest, origin, "Vuelos de vuelta")
+    mostrar_tarjetas(df_air_out_filtrado, origin, dest, "Vuelos disponibles")
