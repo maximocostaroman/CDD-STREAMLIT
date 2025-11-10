@@ -563,7 +563,17 @@ with main_tab1:
 # ====================================================
 with main_tab2:
     st.markdown("## 📊 Explorá nuestros datos")
-    st.caption("Los datos corresponden a vuelos reales utilizados para entrenar el modelo (enero–junio 2023).")
+    st.caption("Los datos corresponden a vuelos reales utilizados para entrenar el modelo (abril–octubre 2022).")
+    # === Cargar dataset real para análisis ===
+    @st.cache_data
+    def load_training_data():
+        df = pd.read_parquet("data/processed/flights_model_JFK_MIA.parquet")
+        df["flightDate"] = pd.to_datetime(df["flightDate"], errors="coerce")
+        df["flight_month"] = df["flightDate"].dt.month
+        df["flight_month_name"] = df["flightDate"].dt.strftime("%b")
+        return df
+    
+    df_data = load_training_data()
 
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📅 Precio por mes",
@@ -575,7 +585,71 @@ with main_tab2:
     ])
 
     with tab1:
-        st.info("📅 Aquí irá el gráfico 1: Variación de precios por mes.")
+        st.markdown("### 📅 Variación de precios promedio por mes (Abr–Oct 2022)")
+        st.caption("Este gráfico muestra cómo varían los precios promedio de los vuelos durante el período de abril a octubre de 2022. Podés filtrar por aeropuerto de origen y destino para identificar tendencias estacionales o diferencias de precio.")
+    
+        # === Selectores ===
+        col1, col2 = st.columns(2)
+        with col1:
+            origen_sel = st.selectbox("✈️ Aeropuerto de origen", ["Todos"] + ORIGINS)
+        with col2:
+            destino_sel = st.selectbox("🏁 Aeropuerto de destino", ["Todos"] + sorted(df_data["destinationAirport"].unique()))
+    
+        # === Filtrado ===
+        df_filt = df_data.copy()
+        if origen_sel != "Todos":
+            df_filt = df_filt[df_filt["startingAirport"] == origen_sel]
+        if destino_sel != "Todos":
+            df_filt = df_filt[df_filt["destinationAirport"] == destino_sel]
+    
+        # === Preprocesamiento de fechas ===
+        df_filt["flightDate"] = pd.to_datetime(df_filt["flightDate"], errors="coerce")
+        df_filt = df_filt[df_filt["flightDate"].notna()]
+        df_filt["month"] = df_filt["flightDate"].dt.month
+        df_filt["month_name"] = df_filt["flightDate"].dt.strftime("%b")
+    
+        # === Filtrar solo meses del dataset ===
+        meses_validos = [4, 5, 6, 7, 8, 9, 10]  # Abril a Octubre
+        df_filt = df_filt[df_filt["month"].isin(meses_validos)]
+    
+        # === Agrupar por mes ===
+        df_mes = (
+            df_filt.groupby("month_name", as_index=False)["totalFare"]
+            .mean()
+            .rename(columns={"totalFare": "Precio promedio (USD)"})
+        )
+    
+        # === Ordenar meses cronológicamente ===
+        orden_meses = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"]
+        df_mes["month_name"] = pd.Categorical(df_mes["month_name"], categories=orden_meses, ordered=True)
+        df_mes = df_mes.sort_values("month_name")
+    
+        # === Crear gráfico ===
+        chart = (
+            alt.Chart(df_mes)
+            .mark_line(point=alt.OverlayMarkDef(color="#0A3161", size=80), color="#B31942", strokeWidth=3)
+            .encode(
+                x=alt.X("month_name:N", title="Mes del año (2022)", sort=orden_meses),
+                y=alt.Y("Precio promedio (USD):Q", title="Precio promedio (USD)", scale=alt.Scale(zero=False)),
+                tooltip=["month_name", "Precio promedio (USD)"]
+            )
+            .properties(width=850, height=420)
+            .configure_axis(labelFontSize=13, titleFontSize=14)
+            .configure_title(fontSize=18)
+        )
+    
+        st.altair_chart(chart, use_container_width=True)
+    
+        # === Leyenda descriptiva ===
+        st.markdown(
+            """
+            <p style='font-size: 0.95em; color: #555; margin-top: 8px;'>
+            <b>Interpretación:</b> este gráfico permite observar la evolución mensual de los precios promedio de los vuelos en el periodo
+            analizado (abril–octubre 2022). Los picos o descensos pueden indicar temporadas de alta o baja demanda según la ruta seleccionada.
+            </p>
+            """,
+            unsafe_allow_html=True,
+        )
 
     with tab2:
         st.info("🏁 Aquí irá el gráfico 2: Comparativo JFK vs MIA.")
