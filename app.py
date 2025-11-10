@@ -191,6 +191,46 @@ def mostrar_tarjetas(df, origen, destino, titulo):
 model = load_model()
 num_cols, cat_cols, airlines_from_model, dow_categories = infer_features_from_model(model)
 
+
+# =======================
+# CARGAR DATASET DE ENTRENAMIENTO
+# =======================
+@st.cache_data
+def load_training_data():
+    """Descarga el dataset original desde Google Drive y lo carga en memoria."""
+    import gdown
+
+    drive_id_data = st.secrets.get("DRIVE_ID_DATA") or os.getenv("DRIVE_ID_DATA")
+    if not drive_id_data:
+        st.error("❌ Falta configurar DRIVE_ID_DATA en secrets o variables de entorno.")
+        st.stop()
+
+    drive_url_data = f"https://drive.google.com/uc?id={drive_id_data}"
+    dataset_path = BASE_DIR / "data" / "processed" / "flights_model_JFK_MIA.parquet"
+    dataset_path.parent.mkdir(parents=True, exist_ok=True)
+
+    tmp_path = dataset_path.with_suffix(".tmp.parquet")
+    if tmp_path.exists():
+        tmp_path.unlink(missing_ok=True)
+
+    with st.spinner("📥 Descargando dataset desde Google Drive..."):
+        gdown.download(drive_url_data, str(tmp_path), quiet=False)
+
+    if not tmp_path.exists() or tmp_path.stat().st_size == 0:
+        st.error("❌ La descarga del dataset falló o el archivo vino vacío. Verificá los permisos de Drive.")
+        st.stop()
+
+    tmp_path.replace(dataset_path)
+
+    # Cargar y procesar
+    df = pd.read_parquet(dataset_path)
+    df["flightDate"] = pd.to_datetime(df["flightDate"], errors="coerce")
+    df["flight_month"] = df["flightDate"].dt.month
+    df["flight_month_name"] = df["flightDate"].dt.strftime("%b")
+
+    st.success(f"✅ Dataset cargado correctamente: {len(df):,} registros.")
+    return df
+
 # =======================
 # INTERFAZ VISUAL
 st.markdown(
@@ -564,15 +604,8 @@ with main_tab1:
 with main_tab2:
     st.markdown("## 📊 Explorá nuestros datos")
     st.caption("Los datos corresponden a vuelos reales utilizados para entrenar el modelo (abril–octubre 2022).")
-    # === Cargar dataset real para análisis ===
-    @st.cache_data
-    def load_training_data():
-        df = pd.read_parquet("data/processed/flights_model_JFK_MIA.parquet")
-        df["flightDate"] = pd.to_datetime(df["flightDate"], errors="coerce")
-        df["flight_month"] = df["flightDate"].dt.month
-        df["flight_month_name"] = df["flightDate"].dt.strftime("%b")
-        return df
-    
+
+    # === Cargar dataset real desde Drive ===
     df_data = load_training_data()
 
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
