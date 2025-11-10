@@ -197,7 +197,7 @@ num_cols, cat_cols, airlines_from_model, dow_categories = infer_features_from_mo
 # =======================
 @st.cache_data
 def load_training_data():
-    """Descarga el dataset original desde Google Drive y lo carga en memoria."""
+    """Descarga el CSV original desde Google Drive y lo carga en memoria."""
     import gdown
 
     drive_id_data = st.secrets.get("DRIVE_ID_DATA") or os.getenv("DRIVE_ID_DATA")
@@ -206,14 +206,14 @@ def load_training_data():
         st.stop()
 
     drive_url_data = f"https://drive.google.com/uc?id={drive_id_data}"
-    dataset_path = BASE_DIR / "data" / "processed" / "flights_model_JFK_MIA.parquet"
+    dataset_path = BASE_DIR / "data" / "processed" / "flights_model_JFK_MIA.csv"
     dataset_path.parent.mkdir(parents=True, exist_ok=True)
 
-    tmp_path = dataset_path.with_suffix(".tmp.parquet")
+    tmp_path = dataset_path.with_suffix(".tmp.csv")
     if tmp_path.exists():
         tmp_path.unlink(missing_ok=True)
 
-    with st.spinner("📥 Descargando dataset desde Google Drive..."):
+    with st.spinner("📥 Descargando dataset CSV desde Google Drive..."):
         gdown.download(drive_url_data, str(tmp_path), quiet=False)
 
     if not tmp_path.exists() or tmp_path.stat().st_size == 0:
@@ -222,13 +222,18 @@ def load_training_data():
 
     tmp_path.replace(dataset_path)
 
-    # Cargar y procesar
-    df = pd.read_parquet(dataset_path)
-    df["flightDate"] = pd.to_datetime(df["flightDate"], errors="coerce")
-    df["flight_month"] = df["flightDate"].dt.month
-    df["flight_month_name"] = df["flightDate"].dt.strftime("%b")
+    # Cargar CSV
+    df = pd.read_csv(dataset_path)
 
-    st.success(f"✅ Dataset cargado correctamente: {len(df):,} registros.")
+    # Fechas y columnas derivadas
+    if "flightDate" in df.columns:
+        df["flightDate"] = pd.to_datetime(df["flightDate"], errors="coerce")
+        df["flight_month"] = df["flightDate"].dt.month
+        df["flight_month_name"] = df["flightDate"].dt.strftime("%b")
+    else:
+        st.warning("⚠️ El CSV no tiene la columna 'flightDate'. Algunos gráficos podrían no mostrarse.")
+
+    st.success(f"✅ Dataset (CSV) cargado correctamente: {len(df):,} registros.")
     return df
 
 # =======================
