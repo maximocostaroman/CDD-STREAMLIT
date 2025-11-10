@@ -305,250 +305,289 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# ===============================================
+# SECCIONES PRINCIPALES
+# ===============================================
+main_tab1, main_tab2 = st.tabs([
+    "🧠 Predecí con nuestro modelo",
+    "📊 Explorá nuestros datos"
+])
 
+# ====================================================
+# SECCIÓN 1: PREDECÍ CON NUESTRO MODELO
+# ====================================================
+with main_tab1:
+    # --- Panel de búsqueda ---
+    st.markdown("### 🔍 Buscador de vuelos\n")
+    st.markdown("✈️ Tipo de viaje: Solo ida")
 
-# --- Panel de búsqueda ---
-st.markdown("### 🔍 Buscador de vuelos\n")
-st.markdown("✈️ Tipo de viaje: Solo ida")
+    c1, c2, c3 = st.columns([1.2, 2, 1.5])
 
-c1, c2, c3 = st.columns([1.2, 2, 1.5])
+    with c1:
+        origin_label = st.selectbox("🛫 Origen", [AIRPORT_NAMES[o] for o in ORIGINS])
+        origin = [k for k, v in AIRPORT_NAMES.items() if v == origin_label][0]
 
-with c1:
-    origin_label = st.selectbox("🛫 Origen", [AIRPORT_NAMES[o] for o in ORIGINS])
-    origin = [k for k, v in AIRPORT_NAMES.items() if v == origin_label][0]
+    with c2:
+        dest_label = st.selectbox("🛬 Destino", [AIRPORT_NAMES[d] for d in DESTS if d != origin])
+        dest = [k for k, v in AIRPORT_NAMES.items() if v == dest_label][0]
 
-with c2:
-    dest_label = st.selectbox("🛬 Destino", [AIRPORT_NAMES[d] for d in DESTS if d != origin])
-    dest = [k for k, v in AIRPORT_NAMES.items() if v == dest_label][0]
-
-with c3:
-    dep_date = st.date_input(
-        "📅 Fecha de salida",
-        value=dt.date.today() + dt.timedelta(days=14),
-        min_value=dt.date.today(),
-        format="DD/MM/YYYY"
-    )
-    
-st.markdown("<br>", unsafe_allow_html=True)
-cta = st.button("🔎 Buscar vuelos", type="primary", use_container_width=True)
-st.markdown("<br><hr>", unsafe_allow_html=True)
-
-# =======================
-# PREDICCIÓN
-# =======================
-def ejecutar_prediccion():
-    X_out = pd.concat([
-        build_features(origin, dest, dep_date, a, False, True,
-                       num_cols, cat_cols, dow_categories).assign(Aerolínea=a)
-        for a in airlines_from_model
-    ], ignore_index=True)
-
-    y_out = model.predict(X_out)
-    df_out = pd.DataFrame({
-        "Aerolínea": X_out["Aerolínea"],
-        "Precio": y_out
-    }).sort_values("Precio")
-
-    st.session_state.update({
-        "df_air_out": df_out,
-        "origin": origin,
-        "dest": dest
-    })
-
-if cta:
-    ejecutar_prediccion()
-
-# =======================
-# RESULTADOS Y GRÁFICOS
-# =======================
-if "df_air_out" in st.session_state:
-    df_air_out = st.session_state.df_air_out
-    origin, dest = st.session_state.origin, st.session_state.dest
-
-    st.markdown("## ✈️ Resultados por aerolínea")
-    # ==============================
-    # FILTRO DE AEROLÍNEAS (funcional y reactivo al primer clic)
-    # ==============================
-    todas_aerolineas = sorted(df_air_out["Aerolínea"].unique())
-    
-    # Inicializar estado solo una vez
-    if "aerolineas_seleccionadas" not in st.session_state:
-        st.session_state.aerolineas_seleccionadas = todas_aerolineas.copy()
-    if "todas_seleccionadas" not in st.session_state:
-        st.session_state.todas_seleccionadas = True
-    
-    with st.expander("🎯 Filtrar por Aerolínea", expanded=False):
-        toggle_todas = st.checkbox(
-            "Seleccionar todas las aerolíneas",
-            value=st.session_state.todas_seleccionadas,
-            help="Marcá o desmarcá para seleccionar o quitar todas las aerolíneas."
+    with c3:
+        dep_date = st.date_input(
+            "📅 Fecha de salida",
+            value=dt.date.today() + dt.timedelta(days=14),
+            min_value=dt.date.today(),
+            format="DD/MM/YYYY"
         )
-    
-        if toggle_todas != st.session_state.todas_seleccionadas:
-            st.session_state.todas_seleccionadas = toggle_todas
-            st.session_state.aerolineas_seleccionadas = (
-                todas_aerolineas.copy() if toggle_todas else []
-            )
-            st.rerun()
-    
-        # --- Multiselect para selección individual ---
-        seleccion = st.multiselect(
-            "Seleccioná las aerolíneas que quieras ver:",
-            options=todas_aerolineas,
-            default=st.session_state.aerolineas_seleccionadas,
-            label_visibility="collapsed"
-        )
-    
-        # --- Si cambia la selección manual, actualizar y recargar ---
-        if set(seleccion) != set(st.session_state.aerolineas_seleccionadas):
-            st.session_state.aerolineas_seleccionadas = seleccion
-            st.session_state.todas_seleccionadas = len(seleccion) == len(todas_aerolineas)
-            st.rerun()
-    
-        st.caption(
-            f"🟩 Mostrando {len(st.session_state.aerolineas_seleccionadas)} "
-            f"de {len(todas_aerolineas)} aerolíneas disponibles."
-        )
-    
-    # Aplicar filtro directamente al DataFrame
-    df_air_out_filtrado = df_air_out[
-        df_air_out["Aerolínea"].isin(st.session_state.aerolineas_seleccionadas)
-    ]
 
-    # Análisis de precios
-    st.markdown("### 📊 Análisis de precios")
-    c1, c2, c3 = st.columns(3)
-    with c1: tend = st.button("📈 Tendencia", use_container_width=True)
-    with c2: aero = st.button("💵 Aerolíneas", use_container_width=True)
-    with c3: temp = st.button("📅 Estacionalidad", use_container_width=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    cta = st.button("🔎 Buscar vuelos", type="primary", use_container_width=True)
+    st.markdown("<br><hr>", unsafe_allow_html=True)
 
-    for key in ["mostrar_tend", "mostrar_aero", "mostrar_temp"]:
-        if key not in st.session_state:
-            st.session_state[key] = False
+    # =======================
+    # PREDICCIÓN
+    # =======================
+    def ejecutar_prediccion():
+        X_out = pd.concat([
+            build_features(origin, dest, dep_date, a, False, True,
+                           num_cols, cat_cols, dow_categories).assign(Aerolínea=a)
+            for a in airlines_from_model
+        ], ignore_index=True)
 
-    if tend:
-        st.session_state.mostrar_tend = True
-    if aero:
-        st.session_state.mostrar_aero = True
-    if temp:
-        st.session_state.mostrar_temp = True
+        y_out = model.predict(X_out)
+        df_out = pd.DataFrame({
+            "Aerolínea": X_out["Aerolínea"],
+            "Precio": y_out
+        }).sort_values("Precio")
 
-    # === Gráficos con botón de cierre ===
-    def mostrar_grafico_tendencia():
-        st.markdown("## 📈 Evolución del precio estimado")
-        st.caption("Muestra cómo varía el precio estimado según los días de anticipación del vuelo.")
-        dias = list(range(120, -1, -10))
-        precios = []
-        for d in dias:
-            try:
-                fecha_simulada = dep_date - dt.timedelta(days=d)
-                pred = model.predict(
-                    build_features(origin, dest, fecha_simulada,
-                                   "Delta", False, True, num_cols, cat_cols, dow_categories)
-                )[0]
-                precios.append(pred)
-            except Exception:
-                precios.append(None)
-        df_tend = pd.DataFrame({"Días antes del vuelo": dias, "Precio estimado (USD)": precios})
-        chart = (
-            alt.Chart(df_tend)
-            .mark_line(point=True, color="#1E88E5", interpolate="monotone")
-            .encode(
-                x=alt.X("Días antes del vuelo:Q", sort="descending", title="Días antes del vuelo"),
-                y=alt.Y("Precio estimado (USD):Q", title="Precio estimado (USD)"),
-                tooltip=["Días antes del vuelo", "Precio estimado (USD)"]
-            )
-            .properties(width=900, height=450)
-        )
-        st.altair_chart(chart, use_container_width=True)
-        st.button(
-            "❌ Cerrar gráfico",
-            key="close_tend",
-            use_container_width=True,
-            on_click=lambda: st.session_state.update({"mostrar_tend": False})
-        )
-    
-    
-    def mostrar_grafico_aerolineas():
-        st.markdown("## 💵 Comparación de precios por aerolínea")
-        st.caption("Compara los precios estimados promedio entre las aerolíneas para la ruta seleccionada.")
-        df_sorted = df_air_out_filtrado.sort_values("Precio", ascending=True)
-        df_sorted["Precio redondeado"] = df_sorted["Precio"].apply(round)
-        chart = (
-            alt.Chart(df_sorted)
-            .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
-            .encode(
-                y=alt.Y("Aerolínea:N", sort="-x", title="Aerolínea"),
-                x=alt.X("Precio redondeado:Q", title="Precio estimado (USD)"),
-                color=alt.Color("Aerolínea:N", legend=None, scale=alt.Scale(scheme="tableau10")),
-                tooltip=["Aerolínea", "Precio redondeado"]
-            )
-            .properties(width=900, height=450)
-        )
-        st.altair_chart(chart, use_container_width=True)
-        st.button(
-            "❌ Cerrar gráfico",
-            key="close_aero",
-            use_container_width=True,
-            on_click=lambda: st.session_state.update({"mostrar_aero": False})
-        )
-    
-    
-    def mostrar_grafico_estacionalidad():
-        st.markdown("## 📅 Evolución del precio promedio por mes")
-        st.caption("Muestra cómo varían los precios estimados de los vuelos a lo largo del año, permitiendo identificar temporadas altas o bajas.")
-        meses = list(range(1, 13))
-        nombres_meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-        precios = []
-        for m in meses:
-            try:
-                pred = model.predict(
-                    build_features(origin, dest, dt.date(2025, m, 15),
-                                   "Delta", False, True, num_cols, cat_cols, dow_categories)
-                )[0]
-                precios.append(pred)
-            except Exception:
-                precios.append(None)
-        df_mes = pd.DataFrame({
-            "Mes": pd.Categorical(nombres_meses, categories=nombres_meses, ordered=True),
-            "Precio promedio (USD)": precios
+        st.session_state.update({
+            "df_air_out": df_out,
+            "origin": origin,
+            "dest": dest
         })
-        chart = (
-            alt.Chart(df_mes)
-            .mark_line(interpolate="monotone", color="#2E7D32", strokeWidth=3)
-            .encode(
-                x=alt.X("Mes:N", sort=nombres_meses, title="Mes del año"),
-                y=alt.Y("Precio promedio (USD):Q", title="Precio promedio (USD)"),
-                tooltip=["Mes", "Precio promedio (USD)"]
-            )
-            .properties(width=900, height=450)
-            +
-            alt.Chart(df_mes)
-            .mark_point(filled=True, size=80, color="#43A047")
-            .encode(
-                x=alt.X("Mes:N", sort=nombres_meses),
-                y="Precio promedio (USD):Q",
-                tooltip=["Mes", "Precio promedio (USD)"]
-            )
-        )
-        st.altair_chart(chart, use_container_width=True)
-        st.button(
-            "❌ Cerrar gráfico",
-            key="close_temp",
-            use_container_width=True,
-            on_click=lambda: st.session_state.update({"mostrar_temp": False})
-        )
-    
-    
-    # === Mostrar gráficos activos ===
-    if st.session_state.mostrar_tend:
-        mostrar_grafico_tendencia()
-    if st.session_state.mostrar_aero:
-        mostrar_grafico_aerolineas()
-    if st.session_state.mostrar_temp:
-        mostrar_grafico_estacionalidad()
 
+    if cta:
+        ejecutar_prediccion()
 
-    # === Tarjetas de resultados ===
-    st.markdown("---")
-    mostrar_tarjetas(df_air_out_filtrado, origin, dest, "Vuelos disponibles")
+    # =======================
+    # RESULTADOS Y GRÁFICOS
+    # =======================
+    if "df_air_out" in st.session_state:
+        df_air_out = st.session_state.df_air_out
+        origin, dest = st.session_state.origin, st.session_state.dest
+
+        st.markdown("## ✈️ Resultados por aerolínea")
+
+        # ==============================
+        # FILTRO DE AEROLÍNEAS
+        # ==============================
+        todas_aerolineas = sorted(df_air_out["Aerolínea"].unique())
+
+        # Inicializar estado solo una vez
+        if "aerolineas_seleccionadas" not in st.session_state:
+            st.session_state.aerolineas_seleccionadas = todas_aerolineas.copy()
+        if "todas_seleccionadas" not in st.session_state:
+            st.session_state.todas_seleccionadas = True
+
+        with st.expander("🎯 Filtrar por Aerolínea", expanded=False):
+            toggle_todas = st.checkbox(
+                "Seleccionar todas las aerolíneas",
+                value=st.session_state.todas_seleccionadas,
+                help="Marcá o desmarcá para seleccionar o quitar todas las aerolíneas."
+            )
+
+            if toggle_todas != st.session_state.todas_seleccionadas:
+                st.session_state.todas_seleccionadas = toggle_todas
+                st.session_state.aerolineas_seleccionadas = (
+                    todas_aerolineas.copy() if toggle_todas else []
+                )
+                st.rerun()
+
+            seleccion = st.multiselect(
+                "Seleccioná las aerolíneas que quieras ver:",
+                options=todas_aerolineas,
+                default=st.session_state.aerolineas_seleccionadas,
+                label_visibility="collapsed"
+            )
+
+            if set(seleccion) != set(st.session_state.aerolineas_seleccionadas):
+                st.session_state.aerolineas_seleccionadas = seleccion
+                st.session_state.todas_seleccionadas = len(seleccion) == len(todas_aerolineas)
+                st.rerun()
+
+            st.caption(
+                f"🟩 Mostrando {len(st.session_state.aerolineas_seleccionadas)} "
+                f"de {len(todas_aerolineas)} aerolíneas disponibles."
+            )
+
+        # Aplicar filtro
+        df_air_out_filtrado = df_air_out[
+            df_air_out["Aerolínea"].isin(st.session_state.aerolineas_seleccionadas)
+        ]
+
+        # === Botones de gráficos ===
+        st.markdown("### 📊 Análisis de precios")
+        c1, c2, c3 = st.columns(3)
+        with c1: tend = st.button("📈 Tendencia", use_container_width=True)
+        with c2: aero = st.button("💵 Aerolíneas", use_container_width=True)
+        with c3: temp = st.button("📅 Estacionalidad", use_container_width=True)
+
+        for key in ["mostrar_tend", "mostrar_aero", "mostrar_temp"]:
+            if key not in st.session_state:
+                st.session_state[key] = False
+
+        if tend:
+            st.session_state.mostrar_tend = True
+        if aero:
+            st.session_state.mostrar_aero = True
+        if temp:
+            st.session_state.mostrar_temp = True
+
+        # === Funciones de gráficos ===
+        def mostrar_grafico_tendencia():
+            st.markdown("## 📈 Evolución del precio estimado")
+            st.caption("Muestra cómo varía el precio estimado según los días de anticipación del vuelo.")
+            dias = list(range(120, -1, -10))
+            precios = []
+            for d in dias:
+                try:
+                    fecha_simulada = dep_date - dt.timedelta(days=d)
+                    pred = model.predict(
+                        build_features(origin, dest, fecha_simulada,
+                                       "Delta", False, True, num_cols, cat_cols, dow_categories)
+                    )[0]
+                    precios.append(pred)
+                except Exception:
+                    precios.append(None)
+            df_tend = pd.DataFrame({"Días antes del vuelo": dias, "Precio estimado (USD)": precios})
+            chart = (
+                alt.Chart(df_tend)
+                .mark_line(point=True, color="#1E88E5", interpolate="monotone")
+                .encode(
+                    x=alt.X("Días antes del vuelo:Q", sort="descending", title="Días antes del vuelo"),
+                    y=alt.Y("Precio estimado (USD):Q", title="Precio estimado (USD)"),
+                    tooltip=["Días antes del vuelo", "Precio estimado (USD)"]
+                )
+                .properties(width=900, height=450)
+            )
+            st.altair_chart(chart, use_container_width=True)
+            st.button(
+                "❌ Cerrar gráfico",
+                key="close_tend",
+                use_container_width=True,
+                on_click=lambda: st.session_state.update({"mostrar_tend": False})
+            )
+
+        def mostrar_grafico_aerolineas():
+            st.markdown("## 💵 Comparación de precios por aerolínea")
+            st.caption("Compara los precios estimados promedio entre las aerolíneas para la ruta seleccionada.")
+            df_sorted = df_air_out_filtrado.sort_values("Precio", ascending=True)
+            df_sorted["Precio redondeado"] = df_sorted["Precio"].apply(round)
+            chart = (
+                alt.Chart(df_sorted)
+                .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+                .encode(
+                    y=alt.Y("Aerolínea:N", sort="-x", title="Aerolínea"),
+                    x=alt.X("Precio redondeado:Q", title="Precio estimado (USD)"),
+                    color=alt.Color("Aerolínea:N", legend=None, scale=alt.Scale(scheme="tableau10")),
+                    tooltip=["Aerolínea", "Precio redondeado"]
+                )
+                .properties(width=900, height=450)
+            )
+            st.altair_chart(chart, use_container_width=True)
+            st.button(
+                "❌ Cerrar gráfico",
+                key="close_aero",
+                use_container_width=True,
+                on_click=lambda: st.session_state.update({"mostrar_aero": False})
+            )
+
+        def mostrar_grafico_estacionalidad():
+            st.markdown("## 📅 Evolución del precio promedio por mes")
+            st.caption("Muestra cómo varían los precios estimados de los vuelos a lo largo del año, permitiendo identificar temporadas altas o bajas.")
+            meses = list(range(1, 13))
+            nombres_meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+            precios = []
+            for m in meses:
+                try:
+                    pred = model.predict(
+                        build_features(origin, dest, dt.date(2025, m, 15),
+                                       "Delta", False, True, num_cols, cat_cols, dow_categories)
+                    )[0]
+                    precios.append(pred)
+                except Exception:
+                    precios.append(None)
+            df_mes = pd.DataFrame({
+                "Mes": pd.Categorical(nombres_meses, categories=nombres_meses, ordered=True),
+                "Precio promedio (USD)": precios
+            })
+            chart = (
+                alt.Chart(df_mes)
+                .mark_line(interpolate="monotone", color="#2E7D32", strokeWidth=3)
+                .encode(
+                    x=alt.X("Mes:N", sort=nombres_meses, title="Mes del año"),
+                    y=alt.Y("Precio promedio (USD):Q", title="Precio promedio (USD)"),
+                    tooltip=["Mes", "Precio promedio (USD)"]
+                )
+                .properties(width=900, height=450)
+                +
+                alt.Chart(df_mes)
+                .mark_point(filled=True, size=80, color="#43A047")
+                .encode(
+                    x=alt.X("Mes:N", sort=nombres_meses),
+                    y="Precio promedio (USD):Q",
+                    tooltip=["Mes", "Precio promedio (USD)"]
+                )
+            )
+            st.altair_chart(chart, use_container_width=True)
+            st.button(
+                "❌ Cerrar gráfico",
+                key="close_temp",
+                use_container_width=True,
+                on_click=lambda: st.session_state.update({"mostrar_temp": False})
+            )
+
+        # === Mostrar gráficos activos ===
+        if st.session_state.mostrar_tend:
+            mostrar_grafico_tendencia()
+        if st.session_state.mostrar_aero:
+            mostrar_grafico_aerolineas()
+        if st.session_state.mostrar_temp:
+            mostrar_grafico_estacionalidad()
+
+        # === Tarjetas de resultados ===
+        st.markdown("---")
+        mostrar_tarjetas(df_air_out_filtrado, origin, dest, "Vuelos disponibles")
+
+# ====================================================
+# SECCIÓN 2: EXPLORÁ NUESTROS DATOS
+# ====================================================
+with main_tab2:
+    st.markdown("## 📊 Explorá nuestros datos")
+    st.caption("Los datos corresponden a vuelos reales utilizados para entrenar el modelo (enero–junio 2023).")
+
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "📅 Precio por mes",
+        "🏁 JFK vs MIA",
+        "✈️ Aerolíneas",
+        "⏰ Anticipación de compra",
+        "📏 Distancia vs Precio",
+        "🗺️ Mapa de rutas"
+    ])
+
+    with tab1:
+        st.info("📅 Aquí irá el gráfico 1: Variación de precios por mes.")
+
+    with tab2:
+        st.info("🏁 Aquí irá el gráfico 2: Comparativo JFK vs MIA.")
+
+    with tab3:
+        st.info("✈️ Aquí irá el gráfico 3: Distribución de precios por aerolínea.")
+
+    with tab4:
+        st.info("⏰ Aquí irá el gráfico 4: Efecto de la anticipación de compra.")
+
+    with tab5:
+        st.info("📏 Aquí irá el gráfico 5: Relación distancia–precio.")
+
+    with tab6:
+        st.info("🗺️ Aquí irá el gráfico 6: Mapa interactivo de rutas.")
