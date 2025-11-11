@@ -768,8 +768,11 @@ with main_tab2:
             st.markdown("### ⏰ Efecto de la anticipación en el precio (por destino)")
             st.caption("Explorá cómo varía el precio promedio según la cantidad de días de anticipación con la que se compra el vuelo para cada destino (abril–octubre 2022).")
         
-            destino_sel = st.selectbox("🏙️ Seleccioná un destino", sorted(df_data["destinationAirport"].unique()))
-        
+            destino_sel = st.selectbox(
+                "🏙️ Seleccioná un destino",
+                sorted(df_data["destinationAirport"].unique()),
+                key="destino_anticipacion"
+            )
             df_ant = df_data[df_data["destinationAirport"] == destino_sel].copy()
             df_ant = df_ant[df_ant["days_to_departure"].between(0, 120)]
             df_ant["flightDate"] = pd.to_datetime(df_ant["flightDate"], errors="coerce")
