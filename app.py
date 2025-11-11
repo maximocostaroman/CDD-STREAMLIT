@@ -802,78 +802,72 @@ with main_tab2:
                 unsafe_allow_html=True,
             )
 
-
-    
+    with tab5:
         import pydeck as pdk
-        
-        with tab5:
-            st.markdown("### 🗺️ Mapa interactivo de rutas entre aeropuertos de EE.UU.")
-            st.caption("Visualizá las rutas más frecuentes entre aeropuertos de EE.UU., coloreadas según el precio promedio observado entre abril y octubre de 2022. Las rutas más caras se muestran en rojo y las más económicas en azul.")
-        
-            # --- Agrupar datos por ruta ---
-            df_map = (
-                df_data.groupby(["startingAirport", "destinationAirport"], as_index=False)
-                .agg({"totalFare": "mean", "totalTravelDistance": "mean"})
-                .rename(columns={"totalFare": "Precio promedio (USD)", "totalTravelDistance": "Distancia (km)"})
+    
+        st.markdown("### 🗺️ Mapa interactivo de rutas")
+        st.caption(
+            "Visualizá las principales rutas entre aeropuertos de EE.UU., "
+            "mostrando la conexión entre los distintos orígenes y destinos "
+            "según el precio promedio observado entre abril y octubre de 2022."
+        )
+    
+        # --- Agrupar por ruta ---
+        df_map = (
+            df_data.groupby(["startingAirport", "destinationAirport"], as_index=False)
+            .agg({"totalFare": "mean"})
+            .rename(columns={"totalFare": "Precio promedio (USD)"})
+        )
+    
+        # --- Agregar coordenadas ---
+        coords = pd.DataFrame(AIRPORT_COORDS).T.reset_index().rename(
+            columns={"index": "code", 0: "lat", 1: "lon"}
+        )
+    
+        df_map = df_map.merge(coords, left_on="startingAirport", right_on="code").rename(
+            columns={"lat": "lat_start", "lon": "lon_start"}
+        )
+    
+        df_map = df_map.merge(coords, left_on="destinationAirport", right_on="code").rename(
+            columns={"lat": "lat_end", "lon": "lon_end"}
+        )
+    
+        # --- Capa de arcos (rutas) ---
+        layer = pdk.Layer(
+            "ArcLayer",
+            data=df_map,
+            get_source_position=["lon_start", "lat_start"],
+            get_target_position=["lon_end", "lat_end"],
+            get_tilt=15,
+            get_width=2,
+            get_source_color=[10, 49, 97, 180],   # azul oscuro
+            get_target_color=[179, 25, 66, 180],  # rojo intenso
+            pickable=True,
+            auto_highlight=True,
+        )
+    
+        # --- Vista inicial ---
+        view_state = pdk.ViewState(latitude=37.5, longitude=-96, zoom=3.5, pitch=30)
+    
+        # --- Renderizar mapa ---
+        st.pydeck_chart(
+            pdk.Deck(
+                layers=[layer],
+                initial_view_state=view_state,
+                tooltip={
+                    "text": "{startingAirport} → {destinationAirport}\n💰 ${Precio promedio (USD):,.0f}"
+                },
+                map_style="mapbox://styles/mapbox/dark-v11",
             )
-        
-            # --- Agregar coordenadas ---
-            coords = pd.DataFrame(AIRPORT_COORDS).T.reset_index()
-            coords.columns = ["code", "lat", "lon"]
-        
-            df_map = df_map.merge(coords, left_on="startingAirport", right_on="code").rename(
-                columns={"lat": "lat_start", "lon": "lon_start"}
-            )
-            df_map = df_map.merge(coords, left_on="destinationAirport", right_on="code").rename(
-                columns={"lat": "lat_end", "lon": "lon_end"}
-            )
-        
-            # --- Escalar precios a colores ---
-            min_price, max_price = df_map["Precio promedio (USD)"].min(), df_map["Precio promedio (USD)"].max()
-        
-            def price_to_color(p):
-                """Convierte el precio promedio a un gradiente azul→rojo."""
-                ratio = (p - min_price) / (max_price - min_price + 1e-6)
-                # Azul para precios bajos, rojo para altos
-                r = int(179 + (255 - 179) * ratio)
-                g = int(25 + (60 - 25) * ratio)
-                b = int(66 - 30 * ratio)
-                return [r, g, b, 180]
-        
-            df_map["color"] = df_map["Precio promedio (USD)"].apply(price_to_color)
-        
-            # --- Capa de rutas ---
-            layer = pdk.Layer(
-                "ArcLayer",
-                data=df_map,
-                get_source_position=["lon_start", "lat_start"],
-                get_target_position=["lon_end", "lat_end"],
-                get_width=2.5,
-                get_tilt=15,
-                get_source_color="color",
-                get_target_color="color",
-                pickable=True,
-                auto_highlight=True,
-            )
-        
-            # --- Vista inicial del mapa ---
-            view_state = pdk.ViewState(latitude=37.5, longitude=-96, zoom=3.4, pitch=30)
-        
-            # --- Mostrar mapa ---
-            st.pydeck_chart(
-                pdk.Deck(
-                    layers=[layer],
-                    initial_view_state=view_state,
-                    tooltip={
-                        "html": "<b>{startingAirport}</b> → <b>{destinationAirport}</b><br/>💰 ${Precio promedio (USD):,.0f}<br/>🛫 {Distancia (km):,.0f} km",
-                        "style": {"color": "white", "font-size": "13px"},
-                    },
-                    map_style="mapbox://styles/mapbox/dark-v11"
-                )
-            )
-        
-            # --- Texto aclaratorio ---
-            st.markdown(
-                "<p style='font-size:0.95em;color:#555;'>Las líneas más <b>rojas</b> representan rutas con precios promedio más altos, mientras que las <b>azules</b> indican trayectos más económicos. El mapa permite identificar visualmente qué conexiones tienen mayor costo relativo.</p>",
-                unsafe_allow_html=True,
-            )
+        )
+    
+        # --- Descripción final ---
+        st.markdown(
+            """
+            <p style='font-size:0.95em;color:#555;'>
+            Este mapa muestra las principales rutas domésticas de EE.UU. durante el periodo analizado.
+            Permite identificar visualmente las conexiones más frecuentes y las rutas con precios promedio más elevados.
+            </p>
+            """,
+            unsafe_allow_html=True,
+        )
