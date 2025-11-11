@@ -802,72 +802,76 @@ with main_tab2:
                 unsafe_allow_html=True,
             )
 
-    with tab5:
-        import pydeck as pdk
-    
-        st.markdown("### 🗺️ Mapa interactivo de rutas")
-        st.caption(
-            "Visualizá las principales rutas entre aeropuertos de EE.UU., "
-            "mostrando la conexión entre los distintos orígenes y destinos "
-            "según el precio promedio observado entre abril y octubre de 2022."
-        )
-    
-        # --- Agrupar por ruta ---
-        df_map = (
-            df_data.groupby(["startingAirport", "destinationAirport"], as_index=False)
-            .agg({"totalFare": "mean"})
-            .rename(columns={"totalFare": "Precio promedio (USD)"})
-        )
-    
-        # --- Agregar coordenadas ---
-        coords = pd.DataFrame(AIRPORT_COORDS).T.reset_index().rename(
-            columns={"index": "code", 0: "lat", 1: "lon"}
-        )
-    
-        df_map = df_map.merge(coords, left_on="startingAirport", right_on="code").rename(
-            columns={"lat": "lat_start", "lon": "lon_start"}
-        )
-    
-        df_map = df_map.merge(coords, left_on="destinationAirport", right_on="code").rename(
-            columns={"lat": "lat_end", "lon": "lon_end"}
-        )
-    
-        # --- Capa de arcos (rutas) ---
-        layer = pdk.Layer(
-            "ArcLayer",
-            data=df_map,
-            get_source_position=["lon_start", "lat_start"],
-            get_target_position=["lon_end", "lat_end"],
-            get_tilt=15,
-            get_width=2,
-            get_source_color=[10, 49, 97, 180],   # azul oscuro
-            get_target_color=[179, 25, 66, 180],  # rojo intenso
-            pickable=True,
-            auto_highlight=True,
-        )
-    
-        # --- Vista inicial ---
-        view_state = pdk.ViewState(latitude=37.5, longitude=-96, zoom=3.5, pitch=30)
-    
-        # --- Renderizar mapa ---
-        st.pydeck_chart(
-            pdk.Deck(
-                layers=[layer],
-                initial_view_state=view_state,
-                tooltip={
-                    "text": "{startingAirport} → {destinationAirport}\n💰 ${Precio promedio (USD):,.0f}"
-                },
-                map_style="mapbox://styles/mapbox/dark-v11",
+        with tab5:
+            import pydeck as pdk
+        
+            st.markdown("### 🗺️ Mapa interactivo de rutas")
+            st.caption(
+                "Visualizá las principales rutas entre aeropuertos de EE.UU., "
+                "mostrando la conexión entre los distintos orígenes y destinos "
+                "según el precio promedio observado entre abril y octubre de 2022."
             )
-        )
-    
-        # --- Descripción final ---
-        st.markdown(
-            """
-            <p style='font-size:0.95em;color:#555;'>
-            Este mapa muestra las principales rutas domésticas de EE.UU. durante el periodo analizado.
-            Permite identificar visualmente las conexiones más frecuentes y las rutas con precios promedio más elevados.
-            </p>
-            """,
-            unsafe_allow_html=True,
-        )
+        
+            # --- Agrupar por ruta ---
+            df_map = (
+                df_data.groupby(["startingAirport", "destinationAirport"], as_index=False)
+                .agg({"totalFare": "mean"})
+                .rename(columns={"totalFare": "Precio promedio (USD)"})
+            )
+        
+            # --- Formatear columna del precio ---
+            df_map["Precio_formateado"] = df_map["Precio promedio (USD)"].apply(lambda x: f"${x:,.0f}")
+        
+            # --- Agregar coordenadas ---
+            coords = pd.DataFrame(AIRPORT_COORDS).T.reset_index().rename(
+                columns={"index": "code", 0: "lat", 1: "lon"}
+            )
+        
+            df_map = df_map.merge(coords, left_on="startingAirport", right_on="code").rename(
+                columns={"lat": "lat_start", "lon": "lon_start"}
+            )
+            df_map = df_map.merge(coords, left_on="destinationAirport", right_on="code").rename(
+                columns={"lat": "lat_end", "lon": "lon_end"}
+            )
+        
+            # --- Capa de rutas ---
+            layer = pdk.Layer(
+                "ArcLayer",
+                data=df_map,
+                get_source_position=["lon_start", "lat_start"],
+                get_target_position=["lon_end", "lat_end"],
+                get_tilt=15,
+                get_width=2,
+                get_source_color=[10, 49, 97, 180],   # Azul oscuro
+                get_target_color=[179, 25, 66, 180],  # Rojo intenso
+                pickable=True,
+                auto_highlight=True,
+            )
+        
+            # --- Vista inicial ---
+            view_state = pdk.ViewState(latitude=37.5, longitude=-96, zoom=3.5, pitch=30)
+        
+            # --- Mapa ---
+            st.pydeck_chart(
+                pdk.Deck(
+                    layers=[layer],
+                    initial_view_state=view_state,
+                    tooltip={
+                        "html": "<b>{startingAirport}</b> → <b>{destinationAirport}</b><br>💰 {Precio_formateado}",
+                        "style": {"color": "white", "font-size": "13px"},
+                    },
+                    map_style="mapbox://styles/mapbox/dark-v11",
+                )
+            )
+        
+            # --- Descripción final ---
+            st.markdown(
+                """
+                <p style='font-size:0.95em;color:#555;'>
+                Este mapa muestra las principales rutas domésticas de EE.UU. durante el periodo analizado.
+                Permite identificar visualmente las conexiones más frecuentes y las rutas con precios promedio más elevados.
+                </p>
+                """,
+                unsafe_allow_html=True,
+            )
+
