@@ -233,7 +233,6 @@ def load_training_data():
     else:
         st.warning("⚠️ El CSV no tiene la columna 'flightDate'. Algunos gráficos podrían no mostrarse.")
 
-    st.success(f"✅ Dataset (CSV) cargado correctamente: {len(df):,} registros.")
     return df
 
 # =======================
@@ -689,17 +688,167 @@ with main_tab2:
             unsafe_allow_html=True,
         )
 
-    with tab2:
-        st.info("🏁 Aquí irá el gráfico 2: Comparativo JFK vs MIA.")
-
-    with tab3:
-        st.info("✈️ Aquí irá el gráfico 3: Distribución de precios por aerolínea.")
-
-    with tab4:
-        st.info("⏰ Aquí irá el gráfico 4: Efecto de la anticipación de compra.")
-
-    with tab5:
-        st.info("📏 Aquí irá el gráfico 5: Relación distancia–precio.")
-
-    with tab6:
-        st.info("🗺️ Aquí irá el gráfico 6: Mapa interactivo de rutas.")
+        with tab2:
+            st.markdown("### 🏁 Comparativo de precios: JFK vs MIA")
+            st.caption("Analizá cómo varían los precios promedio de vuelos según el aeropuerto de origen (JFK o MIA) hacia un destino específico durante abril–octubre 2022.")
+    
+            destino_sel = st.selectbox("🏙️ Seleccioná un destino", sorted(df_data["destinationAirport"].unique()))
+    
+            # Filtrar y agrupar
+            df_comp = df_data[df_data["destinationAirport"] == destino_sel].copy()
+            df_comp["flightDate"] = pd.to_datetime(df_comp["flightDate"], errors="coerce")
+            df_comp["month"] = df_comp["flightDate"].dt.month
+            df_comp["month_name"] = df_comp["flightDate"].dt.strftime("%b")
+            meses_validos = [4, 5, 6, 7, 8, 9, 10]
+            df_comp = df_comp[df_comp["month"].isin(meses_validos)]
+    
+            df_comp = (
+                df_comp.groupby(["startingAirport", "month_name"], as_index=False)["totalFare"]
+                .mean()
+                .rename(columns={"totalFare": "Precio promedio (USD)"})
+            )
+    
+            orden_meses = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"]
+            df_comp["month_name"] = pd.Categorical(df_comp["month_name"], categories=orden_meses, ordered=True)
+            df_comp = df_comp.sort_values("month_name")
+    
+            chart = (
+                alt.Chart(df_comp)
+                .mark_line(point=True, strokeWidth=3)
+                .encode(
+                    x=alt.X("month_name:N", title="Mes del año (2022)", sort=orden_meses),
+                    y=alt.Y("Precio promedio (USD):Q", title="Precio promedio (USD)", scale=alt.Scale(zero=False)),
+                    color=alt.Color("startingAirport:N", title="Origen", scale=alt.Scale(domain=["JFK", "MIA"], range=["#0A3161", "#B31942"])),
+                    tooltip=["startingAirport", "month_name", "Precio promedio (USD)"]
+                )
+                .properties(width=850, height=420)
+            )
+    
+            st.altair_chart(chart, use_container_width=True)
+            st.markdown(
+                "<p style='font-size:0.95em;color:#555;'>Permite observar si los precios difieren según el aeropuerto de salida (JFK o MIA) para un mismo destino, destacando posibles ventajas estacionales.</p>",
+                unsafe_allow_html=True
+            )
+    
+        with tab3:
+            st.markdown("### ✈️ Distribución de precios por aerolínea")
+            st.caption("Explorá la dispersión de precios (mínimo–máximo–mediana) por aerolínea en los datos reales de abril–octubre 2022.")
+    
+            df_box = df_data.copy()
+            df_box["flightDate"] = pd.to_datetime(df_box["flightDate"], errors="coerce")
+            df_box["month"] = df_box["flightDate"].dt.month
+            df_box = df_box[df_box["month"].isin([4, 5, 6, 7, 8, 9, 10])]
+            aerolineas_top = df_box["main_airline"].value_counts().nlargest(12).index
+            df_box = df_box[df_box["main_airline"].isin(aerolineas_top)]
+    
+            chart = (
+                alt.Chart(df_box)
+                .mark_boxplot(extent="min-max", size=15, median={"color": "#B31942"})
+                .encode(
+                    x=alt.X("main_airline:N", title="Aerolínea", sort="-y"),
+                    y=alt.Y("totalFare:Q", title="Precio (USD)"),
+                    color=alt.Color("main_airline:N", legend=None, scale=alt.Scale(scheme="tableau10")),
+                    tooltip=["main_airline", "totalFare"]
+                )
+                .properties(width=850, height=420)
+            )
+    
+            st.altair_chart(chart, use_container_width=True)
+            st.markdown(
+                "<p style='font-size:0.95em;color:#555;'>Algunas aerolíneas muestran precios más estables (cajas pequeñas), mientras que otras tienen gran variabilidad o tarifas premium.</p>",
+                unsafe_allow_html=True
+            )
+    
+        with tab4:
+            st.markdown("### ⏰ Efecto de la anticipación en el precio")
+            st.caption("Analizá cómo influye la cantidad de días previos a la salida en el precio promedio del vuelo (abril–octubre 2022).")
+    
+            aerolinea_sel = st.selectbox("✈️ Seleccioná una aerolínea", sorted(df_data["main_airline"].unique()))
+            df_ant = df_data[df_data["main_airline"] == aerolinea_sel].copy()
+            df_ant = df_ant[df_ant["days_to_departure"].between(0, 120)]
+            df_ant = df_ant.groupby("days_to_departure", as_index=False)["totalFare"].mean()
+    
+            chart = (
+                alt.Chart(df_ant)
+                .mark_line(point=True, color="#1E88E5")
+                .encode(
+                    x=alt.X("days_to_departure:Q", title="Días de anticipación"),
+                    y=alt.Y("totalFare:Q", title="Precio promedio (USD)", scale=alt.Scale(zero=False)),
+                    tooltip=["days_to_departure", "totalFare"]
+                )
+                .properties(width=850, height=420)
+            )
+    
+            st.altair_chart(chart, use_container_width=True)
+            st.markdown(
+                "<p style='font-size:0.95em;color:#555;'>Comprar con mayor anticipación tiende a reducir el precio promedio del vuelo, aunque la relación no siempre es lineal.</p>",
+                unsafe_allow_html=True
+            )
+    
+        with tab5:
+            st.markdown("### 📏 Relación distancia–precio")
+            st.caption("Explorá cómo varía el precio según la distancia recorrida, distinguiendo vuelos directos y con escalas.")
+    
+            df_dist = df_data.copy()
+            df_dist["tipo_vuelo"] = np.where(df_dist["isNonStop"] == 1, "Directo", "Con escalas")
+    
+            chart = (
+                alt.Chart(df_dist.sample(frac=0.3, random_state=42))  # reducir puntos si hay muchos
+                .mark_circle(size=50, opacity=0.4)
+                .encode(
+                    x=alt.X("totalTravelDistance:Q", title="Distancia del vuelo (km)"),
+                    y=alt.Y("totalFare:Q", title="Precio (USD)"),
+                    color=alt.Color("tipo_vuelo:N", title="Tipo de vuelo", scale=alt.Scale(domain=["Directo", "Con escalas"], range=["#B31942", "#0A3161"])),
+                    tooltip=["startingAirport", "destinationAirport", "totalTravelDistance", "totalFare", "tipo_vuelo"]
+                )
+                .properties(width=850, height=420)
+            )
+    
+            st.altair_chart(chart, use_container_width=True)
+            st.markdown(
+                "<p style='font-size:0.95em;color:#555;'>Los vuelos más largos suelen tener precios más altos, aunque los que tienen escalas pueden alterar esa tendencia.</p>",
+                unsafe_allow_html=True
+            )
+    
+        with tab6:
+            import pydeck as pdk
+    
+            st.markdown("### 🗺️ Mapa interactivo de rutas")
+            st.caption("Visualizá las principales rutas entre aeropuertos de EE.UU., coloreadas según el precio promedio observado (abril–octubre 2022).")
+    
+            df_map = (
+                df_data.groupby(["startingAirport", "destinationAirport"], as_index=False)
+                .agg({"totalFare": "mean"})
+                .rename(columns={"totalFare": "Precio promedio (USD)"})
+            )
+    
+            df_map = df_map.merge(
+                pd.DataFrame(AIRPORT_COORDS).T.reset_index().rename(columns={"index": "code", 0: "lat", 1: "lon"}),
+                left_on="startingAirport", right_on="code"
+            ).rename(columns={"lat": "lat_start", "lon": "lon_start"})
+    
+            df_map = df_map.merge(
+                pd.DataFrame(AIRPORT_COORDS).T.reset_index().rename(columns={"index": "code", 0: "lat", 1: "lon"}),
+                left_on="destinationAirport", right_on="code"
+            ).rename(columns={"lat": "lat_end", "lon": "lon_end"})
+    
+            layer = pdk.Layer(
+                "ArcLayer",
+                data=df_map,
+                get_source_position=["lon_start", "lat_start"],
+                get_target_position=["lon_end", "lat_end"],
+                get_tilt=15,
+                get_width=2,
+                get_source_color=[10, 49, 97, 180],
+                get_target_color=[179, 25, 66, 180],
+                pickable=True,
+                auto_highlight=True,
+            )
+    
+            view_state = pdk.ViewState(latitude=37.5, longitude=-96, zoom=3.5, pitch=30)
+            st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip={"text": "{startingAirport} → {destinationAirport}\n${Precio promedio (USD)}"}))
+    
+            st.markdown(
+                "<p style='font-size:0.95em;color:#555;'>El mapa permite identificar visualmente las rutas más activas y las de mayor costo promedio dentro del periodo analizado.</p>",
+                unsafe_allow_html=True
+            )
