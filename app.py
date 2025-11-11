@@ -731,33 +731,39 @@ with main_tab2:
             )
     
         with tab3:
-            st.markdown("### ✈️ Distribución de precios por aerolínea")
-            st.caption("Explorá la dispersión de precios (mínimo–máximo–mediana) por aerolínea en los datos reales de abril–octubre 2022.")
-    
-            df_box = df_data.copy()
-            df_box["flightDate"] = pd.to_datetime(df_box["flightDate"], errors="coerce")
-            df_box["month"] = df_box["flightDate"].dt.month
-            df_box = df_box[df_box["month"].isin([4, 5, 6, 7, 8, 9, 10])]
-            aerolineas_top = df_box["main_airline"].value_counts().nlargest(12).index
-            df_box = df_box[df_box["main_airline"].isin(aerolineas_top)]
-    
-            chart = (
-                alt.Chart(df_box)
-                .mark_boxplot(extent="min-max", size=15, median={"color": "#B31942"})
-                .encode(
-                    x=alt.X("main_airline:N", title="Aerolínea", sort="-y"),
-                    y=alt.Y("totalFare:Q", title="Precio (USD)"),
-                    color=alt.Color("main_airline:N", legend=None, scale=alt.Scale(scheme="tableau10")),
-                    tooltip=["main_airline", "totalFare"]
-                )
-                .properties(width=850, height=420)
+            st.markdown("### 💰 Ranking de aerolíneas por precio promedio (Abr–Oct 2022)")
+            st.caption("Visualizá el precio promedio de los vuelos por aerolínea, ordenadas de mayor a menor costo.")
+        
+            df_rank = df_data.copy()
+            df_rank["flightDate"] = pd.to_datetime(df_rank["flightDate"], errors="coerce")
+            df_rank["month"] = df_rank["flightDate"].dt.month
+            df_rank = df_rank[df_rank["month"].isin([4, 5, 6, 7, 8, 9, 10])]
+        
+            df_rank = (
+                df_rank.groupby("main_airline", as_index=False)["totalFare"]
+                .mean()
+                .rename(columns={"totalFare": "Precio promedio (USD)"})
+                .sort_values("Precio promedio (USD)", ascending=False)
             )
-    
+        
+            chart = (
+                alt.Chart(df_rank)
+                .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+                .encode(
+                    x=alt.X("Precio promedio (USD):Q", title="Precio promedio (USD)"),
+                    y=alt.Y("main_airline:N", sort="-x", title="Aerolínea"),
+                    color=alt.Color("Precio promedio (USD):Q", scale=alt.Scale(scheme="reds"), legend=None),
+                    tooltip=["main_airline", "Precio promedio (USD)"]
+                )
+                .properties(width=850, height=450)
+            )
+        
             st.altair_chart(chart, use_container_width=True)
             st.markdown(
-                "<p style='font-size:0.95em;color:#555;'>Algunas aerolíneas muestran precios más estables (cajas pequeñas), mientras que otras tienen gran variabilidad o tarifas premium.</p>",
-                unsafe_allow_html=True
+                "<p style='font-size:0.95em;color:#555;'>Las aerolíneas ubicadas más arriba presentan tarifas promedio más elevadas en el periodo analizado, reflejando posibles diferencias de segmento o cobertura de rutas.</p>",
+                unsafe_allow_html=True,
             )
+
     
         with tab4:
             st.markdown("### ⏰ Efecto de la anticipación en el precio")
