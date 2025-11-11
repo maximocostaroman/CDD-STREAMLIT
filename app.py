@@ -689,15 +689,7 @@ with main_tab2:
 
         with tab2:
             st.markdown("### 🏁 Comparativo de precios: JFK vs MIA")
-            st.markdown(
-                "<p style='font-size:1.0em; color:#333; margin-top:-8px;'>"
-                "💡 Este gráfico permite comparar precios promedio según el aeropuerto de salida "
-                "(<b>JFK</b> o <b>MIA</b>) para un mismo destino, ayudando a identificar "
-                "desde dónde conviene partir."
-                "</p>",
-                unsafe_allow_html=True
-            )
-            st.caption("Analizá cómo varían los precios promedio de vuelos según el aeropuerto de origen hacia un destino específico durante abril–octubre 2022.")
+            st.caption("Analizá cómo varían los precios promedio de vuelos según el aeropuerto de origen hacia un destino específico durante abril–octubre 2022, ayudando a identificar desde dónde conviene partir.")
 
             destino_sel = st.selectbox("🏙️ Seleccioná un destino", sorted(df_data["destinationAirport"].unique()))
     
