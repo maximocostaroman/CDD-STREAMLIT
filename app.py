@@ -864,14 +864,4 @@ with main_tab2:
                 )
             )
         
-            # --- Descripción final ---
-            st.markdown(
-                """
-                <p style='font-size:0.95em;color:#555;'>
-                Este mapa muestra las principales rutas domésticas de EE.UU. durante el periodo analizado.
-                Permite identificar visualmente las conexiones más frecuentes y las rutas con precios promedio más elevados.
-                </p>
-                """,
-                unsafe_allow_html=True,
-            )
 
