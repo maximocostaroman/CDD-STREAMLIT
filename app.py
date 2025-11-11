@@ -689,7 +689,7 @@ with main_tab2:
 
         with tab2:
             st.markdown("### 🏁 Comparativo de precios: JFK vs MIA")
-            st.caption("Analizá cómo varían los precios promedio de vuelos según el aeropuerto de origen hacia un destino específico durante abril–octubre 2022, ayudando a identificar desde dónde conviene partir.")
+            st.caption("Analizá cómo varían los precios promedio de vuelos según el aeropuerto de origen hacia un destino específico durante abril–octubre 2022.")
 
             destino_sel = st.selectbox("🏙️ Seleccioná un destino", sorted(df_data["destinationAirport"].unique()))
     
@@ -725,8 +725,11 @@ with main_tab2:
     
             st.altair_chart(chart, use_container_width=True)
             st.markdown(
-                "<p style='font-size:0.95em;color:#555;'>Permite observar si los precios difieren según el aeropuerto de salida (JFK o MIA) para un mismo destino, destacando posibles ventajas estacionales.</p>",
-                unsafe_allow_html=True
+                "<p style='font-size:0.95em;color:#555;'>"
+                "Compará cómo varían los precios según el aeropuerto de salida (JFK o MIA) para un mismo destino "
+                "y descubrí desde cuál conviene volar según la época del año."
+                "</p>",
+                unsafe_allow_html=True,
             )
     
         with tab3:
