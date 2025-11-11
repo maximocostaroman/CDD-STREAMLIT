@@ -612,12 +612,11 @@ with main_tab2:
     # === Cargar dataset real desde Drive ===
     df_data = load_training_data()
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📅 Precio por mes",
         "🏁 JFK vs MIA",
         "✈️ Aerolíneas",
         "⏰ Anticipación de compra",
-        "📏 Distancia vs Precio",
         "🗺️ Mapa de rutas"
     ])
 
@@ -766,57 +765,43 @@ with main_tab2:
 
     
         with tab4:
-            st.markdown("### ⏰ Efecto de la anticipación en el precio")
-            st.caption("Analizá cómo influye la cantidad de días previos a la salida en el precio promedio del vuelo (abril–octubre 2022).")
-    
-            aerolinea_sel = st.selectbox("✈️ Seleccioná una aerolínea", sorted(df_data["main_airline"].unique()))
-            df_ant = df_data[df_data["main_airline"] == aerolinea_sel].copy()
+            st.markdown("### ⏰ Efecto de la anticipación en el precio (por destino)")
+            st.caption("Explorá cómo varía el precio promedio según la cantidad de días de anticipación con la que se compra el vuelo para cada destino (abril–octubre 2022).")
+        
+            destino_sel = st.selectbox("🏙️ Seleccioná un destino", sorted(df_data["destinationAirport"].unique()))
+        
+            df_ant = df_data[df_data["destinationAirport"] == destino_sel].copy()
             df_ant = df_ant[df_ant["days_to_departure"].between(0, 120)]
-            df_ant = df_ant.groupby("days_to_departure", as_index=False)["totalFare"].mean()
-    
+            df_ant["flightDate"] = pd.to_datetime(df_ant["flightDate"], errors="coerce")
+            df_ant = df_ant[df_ant["flightDate"].dt.month.isin([4, 5, 6, 7, 8, 9, 10])]
+        
+            df_ant = (
+                df_ant.groupby("days_to_departure", as_index=False)["totalFare"]
+                .mean()
+                .rename(columns={"totalFare": "Precio promedio (USD)"})
+                .sort_values("days_to_departure", ascending=False)
+            )
+        
             chart = (
                 alt.Chart(df_ant)
-                .mark_line(point=True, color="#1E88E5")
+                .mark_line(point=True, color="#1E88E5", strokeWidth=3)
                 .encode(
-                    x=alt.X("days_to_departure:Q", title="Días de anticipación"),
-                    y=alt.Y("totalFare:Q", title="Precio promedio (USD)", scale=alt.Scale(zero=False)),
-                    tooltip=["days_to_departure", "totalFare"]
+                    x=alt.X("days_to_departure:Q", title="Días de anticipación", sort="descending"),
+                    y=alt.Y("Precio promedio (USD):Q", title="Precio promedio (USD)", scale=alt.Scale(zero=False)),
+                    tooltip=["days_to_departure", "Precio promedio (USD)"]
                 )
                 .properties(width=850, height=420)
             )
-    
+        
             st.altair_chart(chart, use_container_width=True)
             st.markdown(
-                "<p style='font-size:0.95em;color:#555;'>Comprar con mayor anticipación tiende a reducir el precio promedio del vuelo, aunque la relación no siempre es lineal.</p>",
-                unsafe_allow_html=True
+                "<p style='font-size:0.95em;color:#555;'>El gráfico permite analizar la relación entre el precio y los días de anticipación para el destino seleccionado, identificando posibles patrones de demanda o variaciones estacionales.</p>",
+                unsafe_allow_html=True,
             )
+
+
     
         with tab5:
-            st.markdown("### 📏 Relación distancia–precio")
-            st.caption("Explorá cómo varía el precio según la distancia recorrida, distinguiendo vuelos directos y con escalas.")
-    
-            df_dist = df_data.copy()
-            df_dist["tipo_vuelo"] = np.where(df_dist["isNonStop"] == 1, "Directo", "Con escalas")
-    
-            chart = (
-                alt.Chart(df_dist.sample(frac=0.3, random_state=42))  # reducir puntos si hay muchos
-                .mark_circle(size=50, opacity=0.4)
-                .encode(
-                    x=alt.X("totalTravelDistance:Q", title="Distancia del vuelo (km)"),
-                    y=alt.Y("totalFare:Q", title="Precio (USD)"),
-                    color=alt.Color("tipo_vuelo:N", title="Tipo de vuelo", scale=alt.Scale(domain=["Directo", "Con escalas"], range=["#B31942", "#0A3161"])),
-                    tooltip=["startingAirport", "destinationAirport", "totalTravelDistance", "totalFare", "tipo_vuelo"]
-                )
-                .properties(width=850, height=420)
-            )
-    
-            st.altair_chart(chart, use_container_width=True)
-            st.markdown(
-                "<p style='font-size:0.95em;color:#555;'>Los vuelos más largos suelen tener precios más altos, aunque los que tienen escalas pueden alterar esa tendencia.</p>",
-                unsafe_allow_html=True
-            )
-    
-        with tab6:
             import pydeck as pdk
     
             st.markdown("### 🗺️ Mapa interactivo de rutas")
