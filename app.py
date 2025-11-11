@@ -680,7 +680,7 @@ with main_tab2:
         st.markdown(
             """
             <p style='font-size: 0.95em; color: #555; margin-top: 8px;'>
-            <b>Interpretación:</b> este gráfico permite observar la evolución mensual de los precios promedio de los vuelos en el periodo
+            Este gráfico permite observar la evolución mensual de los precios promedio de los vuelos en el periodo
             analizado (abril–octubre 2022). Los picos o descensos pueden indicar temporadas de alta o baja demanda según la ruta seleccionada.
             </p>
             """,
@@ -689,8 +689,16 @@ with main_tab2:
 
         with tab2:
             st.markdown("### 🏁 Comparativo de precios: JFK vs MIA")
-            st.caption("Analizá cómo varían los precios promedio de vuelos según el aeropuerto de origen (JFK o MIA) hacia un destino específico durante abril–octubre 2022.")
-    
+            st.markdown(
+                "<p style='font-size:1.0em; color:#333; margin-top:-8px;'>"
+                "💡 Este gráfico permite comparar precios promedio según el aeropuerto de salida "
+                "(<b>JFK</b> o <b>MIA</b>) para un mismo destino, ayudando a identificar "
+                "desde dónde conviene partir."
+                "</p>",
+                unsafe_allow_html=True
+            )
+            st.caption("Analizá cómo varían los precios promedio de vuelos según el aeropuerto de origen hacia un destino específico durante abril–octubre 2022.")
+
             destino_sel = st.selectbox("🏙️ Seleccioná un destino", sorted(df_data["destinationAirport"].unique()))
     
             # Filtrar y agrupar
